@@ -1,31 +1,27 @@
-kind = "web"
+kind = "mobile"
 previewPath = "/"
 title = "Gym Log"
 version = "1.0.0"
 id = "artifacts/gym-log"
-router = "path"
+router = "expo-domain"
 
 [[integratedSkills]]
-name = "react-vite"
+name = "expo"
 version = "1.0.0"
 
 [[services]]
-name = "web"
+ensurePreviewReachable = "/status"
+name = "expo"
 paths = [ "/" ]
-localPort = 20259
+localPort = 20088
 
 [services.development]
 run = "pnpm --filter @workspace/gym-log run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/gym-log", "run", "build" ]
-publicDir = "artifacts/gym-log/dist/public"
-serve = "static"
-
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+run = [ "pnpm", "--filter", "@workspace/gym-log", "run", "serve" ]
 
 [services.env]
-PORT = "20259"
+PORT = "20088"
 BASE_PATH = "/"

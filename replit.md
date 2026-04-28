@@ -6,7 +6,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Artifacts
 
-- **Gym Log** (`artifacts/gym-log`) — Mobile-first React + Vite gym workout logger. Pure frontend, no backend. All data persists in localStorage. PWA-ready (manifest + service worker). Uses wouter, tailwind v4, shadcn, framer-motion. Routes: `/` (category picker), `/workout` (active session), `/history`, `/settings`.
+- **Gym Log** (`artifacts/gym-log`) — Native iOS app built with Expo + Expo Router. Pure frontend, no backend. All data persists on-device via AsyncStorage. Dark theme with crimson accent. Tabs: Train (category picker), History, Settings. Stack screens: workout (active session with rest timer + progression suggestion), exercise-picker (modal), custom-exercise (modal), workout-detail/[id]. Categories: Chest, Back, Legs, Arms, Shoulders, Full Body. Uses NativeTabs with isLiquidGlassAvailable() fallback to classic Tabs. Single WorkoutContext provider holds workouts, customExercises, and active workout, gated on AsyncStorage hydration.
 
 ## Stack
 
