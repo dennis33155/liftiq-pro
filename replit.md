@@ -4,6 +4,10 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+## Artifacts
+
+- **Gym Log** (`artifacts/gym-log`) — Mobile-first React + Vite gym workout logger. Pure frontend, no backend. All data persists in localStorage. PWA-ready (manifest + service worker). Uses wouter, tailwind v4, shadcn, framer-motion. Routes: `/` (category picker), `/workout` (active session), `/history`, `/settings`.
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

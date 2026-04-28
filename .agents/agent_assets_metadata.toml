@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "V-doz2HgMM424Ar5qRnKJ"
+uri = "file://artifacts/gym-log/public/icon.png"
+type = "image"
+title = "gym app icon"
