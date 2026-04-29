@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CategoryCard } from "@/components/CategoryCard";
+import { LiveDateTime } from "@/components/LiveDateTime";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 import { formatRelative } from "@/lib/format";
@@ -129,13 +130,14 @@ export default function HomeScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
             {greeting()}
           </Text>
           <Text style={[styles.appName, { color: colors.foreground }]}>
             Gym Log
           </Text>
+          <LiveDateTime variant="row" align="left" style={{ marginTop: 6 }} />
         </View>
         <View
           style={[

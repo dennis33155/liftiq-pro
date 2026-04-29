@@ -48,6 +48,7 @@ export default function WorkoutScreen() {
   const [now, setNow] = useState(() => new Date());
   const [restVisible, setRestVisible] = useState(false);
   const [restSeconds, setRestSeconds] = useState(90);
+  const [restRestartToken, setRestRestartToken] = useState(0);
 
   useEffect(() => {
     if (!active) {
@@ -76,6 +77,12 @@ export default function WorkoutScreen() {
     month: "short",
     day: "numeric",
   });
+  const startedClockText = active
+    ? new Date(active.startedAt).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";
 
   if (!active) return null;
 
@@ -116,6 +123,9 @@ export default function WorkoutScreen() {
   const startRest = (seconds: number) => {
     setRestSeconds(seconds);
     setRestVisible(true);
+    // Bump the restart token so the timer always resets even if the modal
+    // was already visible from a previous set.
+    setRestRestartToken((t) => t + 1);
   };
 
   return (
@@ -155,7 +165,8 @@ export default function WorkoutScreen() {
             {formatTimer(elapsed)} {"\u00B7"} {completedSets}/{totalSets} sets
           </Text>
           <Text style={[styles.headerClock, { color: colors.mutedForeground }]}>
-            {clockText} {"\u00B7"} {dateText}
+            Started {startedClockText} {"\u00B7"} now {clockText} {"\u00B7"}{" "}
+            {dateText}
           </Text>
         </View>
 
@@ -264,6 +275,7 @@ export default function WorkoutScreen() {
       <RestTimer
         visible={restVisible}
         initialSeconds={restSeconds}
+        restartToken={restRestartToken}
         onClose={() => setRestVisible(false)}
       />
 

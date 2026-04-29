@@ -9,10 +9,21 @@ import { formatTimer } from "@/lib/format";
 type Props = {
   visible: boolean;
   initialSeconds: number;
+  /**
+   * Increment to force-restart the countdown even if `visible` was already
+   * true (e.g. user marks another set done while the timer is still
+   * running).
+   */
+  restartToken?: number;
   onClose: () => void;
 };
 
-export function RestTimer({ visible, initialSeconds, onClose }: Props) {
+export function RestTimer({
+  visible,
+  initialSeconds,
+  restartToken = 0,
+  onClose,
+}: Props) {
   const colors = useColors();
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
   const [paused, setPaused] = useState(false);
@@ -25,7 +36,7 @@ export function RestTimer({ visible, initialSeconds, onClose }: Props) {
       setPaused(false);
       finishedRef.current = false;
     }
-  }, [visible, initialSeconds]);
+  }, [visible, initialSeconds, restartToken]);
 
   useEffect(() => {
     if (!visible || paused) {
@@ -85,8 +96,16 @@ export function RestTimer({ visible, initialSeconds, onClose }: Props) {
       transparent
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
-        <View
+      <Pressable
+        style={styles.overlay}
+        onPress={handleClose}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss rest timer"
+        accessibilityHint="Closes the rest timer modal"
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          accessible={false}
           style={[
             styles.card,
             {
@@ -175,8 +194,8 @@ export function RestTimer({ visible, initialSeconds, onClose }: Props) {
               </Text>
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

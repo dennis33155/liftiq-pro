@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/EmptyState";
+import { LiveDateTime } from "@/components/LiveDateTime";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 import { formatRelative } from "@/lib/format";
@@ -51,6 +52,7 @@ export default function HistoryScreen() {
       >
         <View style={[styles.headerRow, { paddingHorizontal: 20 }]}>
           <Text style={[styles.h1, { color: colors.foreground }]}>History</Text>
+          <LiveDateTime variant="stack" align="right" />
         </View>
         <EmptyState
           icon="clock"
@@ -73,10 +75,13 @@ export default function HistoryScreen() {
       }}
       ListHeaderComponent={
         <View style={styles.headerRow}>
-          <Text style={[styles.h1, { color: colors.foreground }]}>History</Text>
-          <Text style={[styles.count, { color: colors.mutedForeground }]}>
-            {sorted.length} {sorted.length === 1 ? "workout" : "workouts"}
-          </Text>
+          <View>
+            <Text style={[styles.h1, { color: colors.foreground }]}>History</Text>
+            <Text style={[styles.count, { color: colors.mutedForeground }]}>
+              {sorted.length} {sorted.length === 1 ? "workout" : "workouts"}
+            </Text>
+          </View>
+          <LiveDateTime variant="stack" align="right" />
         </View>
       }
       ItemSeparatorComponent={() => <View style={{ height: 10 }} />}

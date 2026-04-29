@@ -15,7 +15,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { HeaderHomeButton } from "@/components/HeaderHomeButton";
+import { HeaderRight } from "@/components/HeaderRight";
 import { WorkoutProvider } from "@/context/WorkoutContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -47,7 +47,7 @@ function RootLayoutNav() {
         options={{
           presentation: "modal",
           title: "Add Exercise",
-          headerRight: () => <HeaderHomeButton />,
+          headerRight: () => <HeaderRight />,
         }}
       />
       <Stack.Screen
@@ -55,14 +55,14 @@ function RootLayoutNav() {
         options={{
           presentation: "modal",
           title: "New Custom Exercise",
-          headerRight: () => <HeaderHomeButton />,
+          headerRight: () => <HeaderRight />,
         }}
       />
       <Stack.Screen
         name="workout-detail/[id]"
         options={{
           title: "Workout",
-          headerRight: () => <HeaderHomeButton />,
+          headerRight: () => <HeaderRight />,
         }}
       />
       <Stack.Screen
@@ -70,28 +70,28 @@ function RootLayoutNav() {
         options={{
           presentation: "modal",
           title: "Exercise",
-          headerRight: () => <HeaderHomeButton />,
+          headerRight: () => <HeaderRight />,
         }}
       />
       <Stack.Screen
         name="pr-history/[id]"
         options={{
           title: "PR History",
-          headerRight: () => <HeaderHomeButton />,
+          headerRight: () => <HeaderRight />,
         }}
       />
       <Stack.Screen
         name="body-metrics"
         options={{
           title: "Body Metrics",
-          headerRight: () => <HeaderHomeButton />,
+          headerRight: () => <HeaderRight />,
         }}
       />
       <Stack.Screen
         name="progress-photos"
         options={{
           title: "Progress Photos",
-          headerRight: () => <HeaderHomeButton />,
+          headerRight: () => <HeaderRight />,
         }}
       />
     </Stack>

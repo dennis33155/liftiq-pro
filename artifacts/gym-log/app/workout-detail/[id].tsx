@@ -22,6 +22,13 @@ import {
   workoutVolume,
 } from "@/lib/progression";
 
+function formatClock(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default function WorkoutDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -88,6 +95,11 @@ export default function WorkoutDetailScreen() {
       </Text>
       <Text style={[styles.date, { color: colors.mutedForeground }]}>
         {formatDate(workout.startedAt)}
+        {"  \u00B7  "}
+        {formatClock(workout.startedAt)}
+        {workout.endedAt
+          ? " \u2192 " + formatClock(workout.endedAt)
+          : ""}
       </Text>
 
       <View

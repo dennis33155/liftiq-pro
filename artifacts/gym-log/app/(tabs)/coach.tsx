@@ -21,6 +21,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/EmptyState";
+import { LiveDateTime } from "@/components/LiveDateTime";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
@@ -185,17 +186,27 @@ export default function CoachScreen() {
       }}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={{ gap: 4 }}>
-        <Text style={[styles.kicker, { color: colors.primary }]}>
-          AI COACH
-        </Text>
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          Personal Bests {"\u00B7"} Recommendations
-        </Text>
-        <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-          Live PRs from your training log plus AI-driven advice from Claude on
-          what to push next.
-        </Text>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <View style={{ gap: 4, flex: 1 }}>
+          <Text style={[styles.kicker, { color: colors.primary }]}>
+            AI COACH
+          </Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            Personal Bests {"\u00B7"} Recommendations
+          </Text>
+          <Text style={[styles.sub, { color: colors.mutedForeground }]}>
+            Live PRs from your training log plus AI-driven advice from Claude on
+            what to push next.
+          </Text>
+        </View>
+        <LiveDateTime variant="stack" align="right" />
       </View>
 
       <View style={styles.toolsRow}>

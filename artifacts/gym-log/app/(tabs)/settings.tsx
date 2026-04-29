@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LiveDateTime } from "@/components/LiveDateTime";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 
@@ -75,7 +76,16 @@ export default function SettingsScreen() {
       }}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.h1, { color: colors.foreground }]}>Settings</Text>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text style={[styles.h1, { color: colors.foreground }]}>Settings</Text>
+        <LiveDateTime variant="stack" align="right" />
+      </View>
 
       <Text style={[styles.section, { color: colors.mutedForeground }]}>
         STATS
