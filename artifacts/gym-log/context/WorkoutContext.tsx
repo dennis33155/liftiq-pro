@@ -85,12 +85,12 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       let initialWorkouts = w;
-      if (!prSeedDone && w.length === 0) {
+      if (!prSeedDone) {
         const seeded = buildPRSeedWorkouts();
-        initialWorkouts = seeded;
-        await saveWorkouts(seeded);
-        await markPRSeedDone();
-      } else if (!prSeedDone) {
+        const merged = [...seeded, ...w];
+        merged.sort((a, b) => b.startedAt - a.startedAt);
+        initialWorkouts = merged;
+        await saveWorkouts(merged);
         await markPRSeedDone();
       }
 

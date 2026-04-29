@@ -6,7 +6,8 @@ const KEYS = {
   workouts: "gymlog.workouts.v1",
   custom: "gymlog.customExercises.v1",
   active: "gymlog.activeWorkout.v1",
-  prSeed: "gymlog.prSeed.v1",
+  prSeed: "gymlog.prSeed.v2",
+  prSeedLegacy: "gymlog.prSeed.v1",
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -66,6 +67,7 @@ export async function clearAll(): Promise<void> {
     AsyncStorage.removeItem(KEYS.custom),
     AsyncStorage.removeItem(KEYS.active),
     AsyncStorage.removeItem(KEYS.prSeed),
+    AsyncStorage.removeItem(KEYS.prSeedLegacy),
   ]);
 }
 

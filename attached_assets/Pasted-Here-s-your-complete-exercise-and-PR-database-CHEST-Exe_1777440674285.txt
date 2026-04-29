@@ -1,0 +1,87 @@
+Here’s your complete exercise and PR database:
+
+CHEST
+
+
+
+|Exercise               |PR Weight                     |PR Reps |Notes                     |
+|-----------------------|------------------------------|--------|--------------------------|
+|Incline DB Press       |50 lb                         |12      |Your #1 priority exercise |
+|Hammer Strength Incline|65 lb each side               |11      |Build: 45→55→65           |
+|Hammer Strength Supine |70 lb each side               |10      |Build: 55→65→70           |
+|Foreman FLY-231        |35 lb each side               |7       |Open at 25 lb next session|
+|Dumbbell Pullover      |55 lb                         |12      |Permanent staple          |
+|Cable Fly Tri-set      |Top 17.5 / Mid 17.5 / Bot 12.5|15/15/10|3 rounds Top→Mid→Bottom   |
+
+BACK
+
+
+
+|Exercise              |PR Weight|PR Reps    |Notes                 |
+|----------------------|---------|-----------|----------------------|
+|Lat Pulldown (wide)   |110 lb   |12         |Superset with reverse |
+|Lat Pulldown (reverse)|110 lb   |8          |Same weight as wide   |
+|Seated Row (MAG grip) |115 lb   |15         |Game changer grip     |
+|Single Arm DB Row     |55 lb    |12 each arm|Build: 40→55          |
+|Rear Delt Machine     |70 lb    |8          |Matrix Pec Fly machine|
+|Face Pulls            |—        |15         |Light weight high reps|
+
+SHOULDERS
+
+
+
+|Exercise               |PR Weight      |PR Reps  |Notes                  |
+|-----------------------|---------------|---------|-----------------------|
+|DB Shoulder Press      |50 lb          |14       |Build: 40→45→50 always |
+|Lateral Raise Machine  |75 lb          |12       |Stop at shoulder height|
+|Cable Lateral Raise    |15 lb          |10 strict|Slow descent           |
+|DB Shrugs              |50 lb          |15       |All 3 sets same weight |
+|Foreman FLY-217 Low Row|25 lb each side|10       |Rear delt focus        |
+
+ARMS
+
+
+
+|Exercise                 |PR Weight|PR Reps    |Notes                  |
+|-------------------------|---------|-----------|-----------------------|
+|DB Curls (arm blaster)   |25 lb    |12 each arm|Blaster every Wednesday|
+|Hammer Curls             |27.5 lb  |12 each arm|No blaster             |
+|Cable Curls              |35 lb    |12         |7th pin from top       |
+|Rope Pushdown            |40 lb    |15         |Split rope at bottom   |
+|Overhead Tricep Extension|60 lb    |15         |PR — long head focus   |
+|Cable Overhead Extension |35 lb    |12         |Face away from cable   |
+
+LEGS
+
+
+
+|Exercise     |PR Weight|PR Reps|Notes                   |
+|-------------|---------|-------|------------------------|
+|Back Squat   |195 lb   |12     |Build: 135→155→175→195  |
+|Leg Press    |180 lb   |12     |Start light after squats|
+|Leg Extension|90 lb    |9      |10 lb increments at AMP |
+|Leg Curl     |—        |12     |Moderate weight         |
+|Hip Abductor |165 lb   |15     |Every single session    |
+|Hip Adductor |110 lb   |15     |                        |
+|Calf Raises  |—        |20     |Slow full range         |
+
+WARM-UP (Every Session)
+
+
+
+|Exercise|PR     |
+|--------|-------|
+|Dips    |15 reps|
+|Pull-ups|12 reps|
+
+KEY NOTES FOR THE APP
+	•	Hip Abductor is done every single session regardless of muscle group
+	•	Warm-up is always dips + pull-ups to start
+	•	Shoulder press always builds up: 40→45→50 lb — never start at PR weight
+	•	Lat pulldown is a superset: wide grip then immediately reverse grip, same weight, no rest
+	•	Cable stack at AMP: 5 lb increments, 15 holes, 7th pin = 32.5 lb
+	•	Left knee: ACL/MCL history — always wear knee sleeves for squats
+	•	No Romanian deadlifts — lower back strain history
+	•	Injection Fridays — T peaks for Saturday chest and Sunday legs
+
+Copy this entire summary and paste it into your app history. Every exercise, every PR, every note is here. 💪🔥​​​​​​​​​​​​​​​​
