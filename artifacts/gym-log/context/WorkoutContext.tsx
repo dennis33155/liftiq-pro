@@ -19,6 +19,11 @@ import {
   saveWorkouts,
 } from "@/lib/storage";
 import { buildSuggestedWorkout } from "@/lib/recommendation";
+import {
+  FINISHER_EXERCISE_IDS,
+  WARMUP_EXERCISE_IDS,
+  WARMUP_PRESETS,
+} from "@/lib/schedule";
 import { SEED_EXERCISES } from "@/lib/seedExercises";
 import type {
   Category,
@@ -93,17 +98,78 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     [customExercises],
   );
 
-  const startWorkout = useCallback((category: Category): Workout => {
-    const newWorkout: Workout = {
+  const makeWorkoutExercise = useCallback(
+    (
+      exerciseId: string,
+      preset?: { weight: number | null; reps: number | null },
+    ): WorkoutExercise => ({
       id: makeId(),
-      category,
-      startedAt: Date.now(),
-      endedAt: null,
-      exercises: [],
-    };
-    setActive(newWorkout);
-    return newWorkout;
-  }, []);
+      exerciseId,
+      sets: [
+        {
+          id: makeId(),
+          weight: preset?.weight ?? null,
+          reps: preset?.reps ?? null,
+          done: false,
+        },
+      ],
+    }),
+    [],
+  );
+
+  const buildWarmupBlocks = useCallback((): WorkoutExercise[] => {
+    return WARMUP_EXERCISE_IDS.filter((id) =>
+      [...SEED_EXERCISES, ...customExercises].some((e) => e.id === id),
+    ).map((id) =>
+      makeWorkoutExercise(id, {
+        weight: WARMUP_PRESETS[id]?.weight ?? null,
+        reps: WARMUP_PRESETS[id]?.reps ?? null,
+      }),
+    );
+  }, [customExercises, makeWorkoutExercise]);
+
+  const buildFinisherBlocks = useCallback((): WorkoutExercise[] => {
+    return FINISHER_EXERCISE_IDS.filter((id) =>
+      [...SEED_EXERCISES, ...customExercises].some((e) => e.id === id),
+    ).map((id) => makeWorkoutExercise(id));
+  }, [customExercises, makeWorkoutExercise]);
+
+  const insertBeforeFinisher = useCallback(
+    (
+      exercises: WorkoutExercise[],
+      additions: WorkoutExercise[],
+    ): WorkoutExercise[] => {
+      if (additions.length === 0) return exercises;
+      const finisherSet = new Set(FINISHER_EXERCISE_IDS);
+      const idx = exercises.findIndex((e) => finisherSet.has(e.exerciseId));
+      if (idx === -1) return [...exercises, ...additions];
+      return [
+        ...exercises.slice(0, idx),
+        ...additions,
+        ...exercises.slice(idx),
+      ];
+    },
+    [],
+  );
+
+  const startWorkout = useCallback(
+    (category: Category): Workout => {
+      const exercises = [
+        ...buildWarmupBlocks(),
+        ...buildFinisherBlocks(),
+      ];
+      const newWorkout: Workout = {
+        id: makeId(),
+        category,
+        startedAt: Date.now(),
+        endedAt: null,
+        exercises,
+      };
+      setActive(newWorkout);
+      return newWorkout;
+    },
+    [buildWarmupBlocks, buildFinisherBlocks],
+  );
 
   const endWorkout = useCallback(() => {
     setActive((curr) => {
@@ -118,69 +184,82 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     setActive(null);
   }, []);
 
-  const addExerciseToActive = useCallback((exerciseId: string) => {
-    setActive((curr) => {
-      if (!curr) return curr;
-      if (curr.exercises.some((e) => e.exerciseId === exerciseId)) return curr;
-      const we: WorkoutExercise = {
-        id: makeId(),
-        exerciseId,
-        sets: [
-          { id: makeId(), weight: null, reps: null, done: false },
-        ],
-      };
-      return { ...curr, exercises: [...curr.exercises, we] };
-    });
-  }, []);
+  const addExerciseToActive = useCallback(
+    (exerciseId: string) => {
+      setActive((curr) => {
+        if (!curr) return curr;
+        if (curr.exercises.some((e) => e.exerciseId === exerciseId)) return curr;
+        const we = makeWorkoutExercise(exerciseId);
+        return {
+          ...curr,
+          exercises: insertBeforeFinisher(curr.exercises, [we]),
+        };
+      });
+    },
+    [insertBeforeFinisher, makeWorkoutExercise],
+  );
 
   const populateSuggested = useCallback(
     (count: number = 5) => {
       setActive((curr) => {
         if (!curr) return curr;
+        const existingIds = new Set(curr.exercises.map((e) => e.exerciseId));
+        const exclude = [
+          ...WARMUP_EXERCISE_IDS,
+          ...FINISHER_EXERCISE_IDS,
+          ...curr.exercises.map((e) => e.exerciseId),
+        ];
         const suggestions = buildSuggestedWorkout(
           [...SEED_EXERCISES, ...customExercises],
           curr.category,
           workouts,
           count,
+          exclude,
         );
-        const existingIds = new Set(curr.exercises.map((e) => e.exerciseId));
         const additions: WorkoutExercise[] = suggestions
           .filter((s) => !existingIds.has(s.id))
-          .map((s) => ({
-            id: makeId(),
-            exerciseId: s.id,
-            sets: [{ id: makeId(), weight: null, reps: null, done: false }],
-          }));
-        return { ...curr, exercises: [...curr.exercises, ...additions] };
+          .map((s) => makeWorkoutExercise(s.id));
+        return {
+          ...curr,
+          exercises: insertBeforeFinisher(curr.exercises, additions),
+        };
       });
     },
-    [customExercises, workouts],
+    [customExercises, workouts, makeWorkoutExercise, insertBeforeFinisher],
   );
 
   const startSuggestedWorkout = useCallback(
     (category: Category, count: number = 5): Workout => {
+      const warmup = buildWarmupBlocks();
+      const finisher = buildFinisherBlocks();
+      const exclude = [...WARMUP_EXERCISE_IDS, ...FINISHER_EXERCISE_IDS];
       const suggestions = buildSuggestedWorkout(
         [...SEED_EXERCISES, ...customExercises],
         category,
         workouts,
         count,
+        exclude,
       );
-      const exercises: WorkoutExercise[] = suggestions.map((s) => ({
-        id: makeId(),
-        exerciseId: s.id,
-        sets: [{ id: makeId(), weight: null, reps: null, done: false }],
-      }));
+      const mains: WorkoutExercise[] = suggestions.map((s) =>
+        makeWorkoutExercise(s.id),
+      );
       const newWorkout: Workout = {
         id: makeId(),
         category,
         startedAt: Date.now(),
         endedAt: null,
-        exercises,
+        exercises: [...warmup, ...mains, ...finisher],
       };
       setActive(newWorkout);
       return newWorkout;
     },
-    [customExercises, workouts],
+    [
+      customExercises,
+      workouts,
+      buildWarmupBlocks,
+      buildFinisherBlocks,
+      makeWorkoutExercise,
+    ],
   );
 
   const removeExerciseFromActive = useCallback(

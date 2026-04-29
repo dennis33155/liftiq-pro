@@ -83,8 +83,12 @@ export function buildSuggestedWorkout(
   category: Category,
   workouts: Workout[],
   totalCount = 5,
+  excludeIds: string[] = [],
 ): Exercise[] {
-  const inCat = exercises.filter((e) => e.category === category);
+  const exclude = new Set(excludeIds);
+  const inCat = exercises.filter(
+    (e) => e.category === category && !exclude.has(e.id),
+  );
   if (inCat.length === 0) return [];
 
   const usage = buildExerciseUsage(workouts);

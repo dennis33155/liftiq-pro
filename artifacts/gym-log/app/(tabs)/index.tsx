@@ -17,6 +17,7 @@ import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 import { formatRelative } from "@/lib/format";
 import { workoutVolume } from "@/lib/progression";
+import { WEEKLY_SCHEDULE, getTodaySlot } from "@/lib/schedule";
 import { CATEGORIES } from "@/lib/types";
 import type { Category } from "@/lib/types";
 
@@ -58,6 +59,8 @@ export default function HomeScreen() {
   }).length;
 
   const lastWorkout = workouts[0];
+  const today = getTodaySlot();
+  const todayDay = today.day;
 
   return (
     <ScrollView
@@ -143,30 +146,93 @@ export default function HomeScreen() {
           </View>
         </Pressable>
       ) : (
-        <View style={styles.statRow}>
-          <StatTile
-            label="Today"
-            value={todaysCount.toString()}
-            sub={todaysCount === 1 ? "session" : "sessions"}
+        <>
+          <TodayCard
+            slot={today}
+            onStart={() => {
+              if (today.category) handleStart(today.category);
+            }}
+            onSuggest={() => {
+              if (today.category) handleSuggest(today.category);
+            }}
           />
-          <StatTile
-            label="Last Lift"
-            value={
-              lastWorkout
-                ? Math.round(workoutVolume(lastWorkout)).toLocaleString()
-                : "0"
-            }
-            sub="lb volume"
-          />
-          <StatTile label="Total" value={workouts.length.toString()} sub="workouts" />
-        </View>
+          <View style={styles.statRow}>
+            <StatTile
+              label="Today"
+              value={todaysCount.toString()}
+              sub={todaysCount === 1 ? "session" : "sessions"}
+            />
+            <StatTile
+              label="Last Lift"
+              value={
+                lastWorkout
+                  ? Math.round(workoutVolume(lastWorkout)).toLocaleString()
+                  : "0"
+              }
+              sub="lb volume"
+            />
+            <StatTile
+              label="Total"
+              value={workouts.length.toString()}
+              sub="workouts"
+            />
+          </View>
+        </>
       )}
 
       <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-        START A WORKOUT
+        WEEKLY SPLIT
+      </Text>
+      <View style={styles.weekStrip}>
+        {WEEKLY_SCHEDULE.map((slot) => {
+          const isToday = slot.day === todayDay;
+          return (
+            <View
+              key={slot.day}
+              style={[
+                styles.weekPill,
+                {
+                  backgroundColor: isToday ? colors.primary : colors.card,
+                  borderColor: isToday ? colors.primary : colors.border,
+                  borderRadius: colors.radius,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.weekPillDay,
+                  {
+                    color: isToday
+                      ? colors.primaryForeground
+                      : colors.mutedForeground,
+                  },
+                ]}
+              >
+                {slot.short.toUpperCase()}
+              </Text>
+              <Text
+                style={[
+                  styles.weekPillCat,
+                  {
+                    color: isToday
+                      ? colors.primaryForeground
+                      : colors.foreground,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {slot.isRest ? "Rest" : slot.category}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+        ALL CATEGORIES
       </Text>
       <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
-        Tap to start blank, or "Suggest" to auto-build a session.
+        Override the schedule. Tap to start blank, or "Suggest" to auto-build.
       </Text>
 
       <View style={styles.categories}>
@@ -180,6 +246,152 @@ export default function HomeScreen() {
         ))}
       </View>
     </ScrollView>
+  );
+}
+
+function TodayCard({
+  slot,
+  onStart,
+  onSuggest,
+}: {
+  slot: ReturnType<typeof getTodaySlot>;
+  onStart: () => void;
+  onSuggest: () => void;
+}) {
+  const colors = useColors();
+
+  if (slot.isRest) {
+    return (
+      <View
+        style={[
+          todayStyles.card,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius + 4,
+          },
+        ]}
+      >
+        <View style={todayStyles.headerRow}>
+          <Text style={[todayStyles.label, { color: colors.mutedForeground }]}>
+            TODAY {"\u00B7"} {slot.long.toUpperCase()}
+          </Text>
+          <View
+            style={[
+              todayStyles.badge,
+              { backgroundColor: colors.accent, borderColor: colors.border },
+            ]}
+          >
+            <Text
+              style={[todayStyles.badgeText, { color: colors.mutedForeground }]}
+            >
+              REST DAY
+            </Text>
+          </View>
+        </View>
+        <Text style={[todayStyles.title, { color: colors.foreground }]}>
+          Rest
+        </Text>
+        <Text style={[todayStyles.note, { color: colors.mutedForeground }]}>
+          {slot.note ?? "Recover. Eat. Sleep."}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        todayStyles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          borderRadius: colors.radius + 4,
+        },
+      ]}
+    >
+      <View style={todayStyles.headerRow}>
+        <Text style={[todayStyles.label, { color: colors.mutedForeground }]}>
+          TODAY {"\u00B7"} {slot.long.toUpperCase()}
+        </Text>
+        {slot.badge ? (
+          <View
+            style={[
+              todayStyles.badge,
+              {
+                backgroundColor: colors.primary,
+                borderColor: colors.primary,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                todayStyles.badgeText,
+                { color: colors.primaryForeground },
+              ]}
+            >
+              {slot.badge}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={[todayStyles.title, { color: colors.foreground }]}>
+        {slot.category}
+      </Text>
+      {slot.note ? (
+        <Text style={[todayStyles.note, { color: colors.mutedForeground }]}>
+          {slot.note}
+        </Text>
+      ) : null}
+      <View style={todayStyles.actions}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onSuggest();
+          }}
+          style={({ pressed }) => [
+            todayStyles.btn,
+            {
+              backgroundColor: colors.accent,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Feather name="zap" size={14} color={colors.foreground} />
+          <Text style={[todayStyles.btnText, { color: colors.foreground }]}>
+            Suggest
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            onStart();
+          }}
+          style={({ pressed }) => [
+            todayStyles.btn,
+            todayStyles.btnPrimary,
+            {
+              backgroundColor: colors.primary,
+              borderRadius: colors.radius,
+              opacity: pressed ? 0.9 : 1,
+            },
+          ]}
+        >
+          <Text
+            style={[todayStyles.btnText, { color: colors.primaryForeground }]}
+          >
+            Start
+          </Text>
+          <Feather
+            name="arrow-right"
+            size={14}
+            color={colors.primaryForeground}
+          />
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -314,6 +526,91 @@ const styles = StyleSheet.create({
   categories: {
     paddingHorizontal: 20,
     gap: 10,
+  },
+  weekStrip: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 6,
+    marginBottom: 28,
+  },
+  weekPill: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  weekPillDay: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  weekPillCat: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 10,
+    letterSpacing: 0.2,
+  },
+});
+
+const todayStyles = StyleSheet.create({
+  card: {
+    marginHorizontal: 20,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  label: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    letterSpacing: 1.2,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  badgeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+  title: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 28,
+    marginBottom: 6,
+  },
+  note: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    marginBottom: 14,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  btn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    gap: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  btnPrimary: {
+    borderWidth: 0,
+  },
+  btnText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 14,
   },
 });
 

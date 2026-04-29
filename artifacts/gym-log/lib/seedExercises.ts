@@ -506,6 +506,17 @@ export const SEED_EXERCISES: Exercise[] = [
     execution: "Drive up onto toes, squeeze, lower into deep stretch.",
     tip: "Targets the soleus more than standing variations.",
   },
+  {
+    id: "ex_hip_abductor",
+    name: "Hip Abductor",
+    category: "Legs",
+    equipment: "Machine",
+    primaryMuscles: ["Gluteus Medius", "Gluteus Minimus"],
+    secondaryMuscles: ["Tensor Fasciae Latae", "Gluteus Maximus"],
+    preparation: "Sit upright, knees bent, outer thighs against the pads.",
+    execution: "Press knees outward against pads, hold, return slowly.",
+    tip: "Personal non-negotiable finisher. Burn it out every session.",
+  },
 
   // ============== ARMS ==============
   {
