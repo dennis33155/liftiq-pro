@@ -20,10 +20,13 @@ import { EmptyState } from "@/components/EmptyState";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
+import { requestPhotoAnalysis } from "@/lib/api";
 import {
   addProgressPhoto,
   deleteProgressPhoto,
+  getPhotoDataUri,
   loadProgressPhotos,
+  setProgressPhotoAnalysis,
   type ProgressPhoto,
 } from "@/lib/progressPhotos";
 import type { Workout } from "@/lib/types";
@@ -122,6 +125,14 @@ export default function ProgressPhotosScreen() {
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
   const [viewing, setViewing] = useState<ProgressPhoto | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const [viewerAnalyzing, setViewerAnalyzing] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -218,6 +229,12 @@ export default function ProgressPhotosScreen() {
               .then((next) => {
                 setPhotos(next);
                 if (viewing && viewing.id === id) setViewing(null);
+                setSelectedIds((prev) => {
+                  if (!prev.has(id)) return prev;
+                  const next = new Set(prev);
+                  next.delete(id);
+                  return next;
+                });
               })
               .catch(() => {});
           },
@@ -226,6 +243,96 @@ export default function ProgressPhotosScreen() {
     },
     [viewing],
   );
+
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode((prev) => {
+      if (prev) {
+        setSelectedIds(new Set());
+        return false;
+      }
+      return true;
+    });
+  }, []);
+
+  const togglePhotoSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const runAnalysisFor = useCallback(
+    async (photo: ProgressPhoto): Promise<ProgressPhoto[] | null> => {
+      try {
+        const dataUri = await getPhotoDataUri(photo);
+        const result = await requestPhotoAnalysis({
+          imageDataUri: dataUri,
+          photoDate: photo.date,
+        });
+        const next = await setProgressPhotoAnalysis(photo.id, {
+          text: result.analysis,
+          analyzedAt: result.analyzedAt,
+          model: result.model,
+        });
+        return next;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        Alert.alert("Could not analyze photo", msg);
+        return null;
+      }
+    },
+    [],
+  );
+
+  const handleAnalyzeSelected = useCallback(async () => {
+    if (analyzing) return;
+    if (selectedIds.size === 0) return;
+    const targets = photos.filter((p) => selectedIds.has(p.id));
+    if (targets.length === 0) return;
+
+    setAnalyzing(true);
+    setAnalyzeProgress({ done: 0, total: targets.length });
+    let anySucceeded = false;
+    for (let i = 0; i < targets.length; i += 1) {
+      const photo = targets[i];
+      const updated = await runAnalysisFor(photo);
+      if (updated) {
+        anySucceeded = true;
+        // Functional update so we never overwrite with a stale snapshot.
+        setPhotos(() => updated);
+      }
+      setAnalyzeProgress({ done: i + 1, total: targets.length });
+    }
+    setAnalyzing(false);
+    setAnalyzeProgress(null);
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    if (anySucceeded) {
+      Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      ).catch(() => {});
+    }
+  }, [analyzing, photos, runAnalysisFor, selectedIds]);
+
+  const handleAnalyzeViewing = useCallback(async () => {
+    if (!viewing || viewerAnalyzing) return;
+    setViewerAnalyzing(true);
+    try {
+      const updated = await runAnalysisFor(viewing);
+      if (updated) {
+        setPhotos(updated);
+        const refreshed = updated.find((p) => p.id === viewing.id) ?? null;
+        setViewing(refreshed);
+        Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        ).catch(() => {});
+      }
+    } finally {
+      setViewerAnalyzing(false);
+    }
+  }, [runAnalysisFor, viewing, viewerAnalyzing]);
 
   const groups = useMemo(() => groupByDay(photos), [photos]);
   const coachComment = useMemo(
@@ -236,6 +343,8 @@ export default function ProgressPhotosScreen() {
   const screenWidth = Dimensions.get("window").width;
   const cellSize =
     (screenWidth - HORIZONTAL_PADDING * 2 - GAP * (COLUMNS - 1)) / COLUMNS;
+
+  const selectedCount = selectedIds.size;
 
   return (
     <>
@@ -265,7 +374,7 @@ export default function ProgressPhotosScreen() {
           <PrimaryButton
             label={adding ? "Working..." : "Take Photo"}
             onPress={handleTakePhoto}
-            disabled={adding}
+            disabled={adding || selectMode}
             icon={
               adding ? (
                 <ActivityIndicator color={colors.primaryForeground} />
@@ -282,13 +391,90 @@ export default function ProgressPhotosScreen() {
           <PrimaryButton
             label="From Library"
             onPress={handlePick}
-            disabled={adding}
+            disabled={adding || selectMode}
             variant="secondary"
             icon={
               <Feather name="image" size={16} color={colors.foreground} />
             }
             style={{ flex: 1 }}
           />
+        </View>
+
+        {photos.length > 0 ? (
+          <View style={styles.btnRow}>
+            <PrimaryButton
+              label={selectMode ? "Cancel" : "Select Photos to Analyze"}
+              onPress={toggleSelectMode}
+              variant="secondary"
+              disabled={analyzing}
+              icon={
+                <Feather
+                  name={selectMode ? "x" : "check-square"}
+                  size={16}
+                  color={colors.foreground}
+                />
+              }
+              style={{ flex: 1 }}
+            />
+          </View>
+        ) : null}
+
+        {selectMode ? (
+          <View
+            style={[
+              styles.selectBar,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Text style={[styles.selectCount, { color: colors.foreground }]}>
+              {selectedCount === 0
+                ? "Tap photos to select"
+                : selectedCount +
+                  " photo" +
+                  (selectedCount === 1 ? "" : "s") +
+                  " selected"}
+            </Text>
+            <PrimaryButton
+              label={
+                analyzing
+                  ? "Analyzing " +
+                    (analyzeProgress
+                      ? analyzeProgress.done + "/" + analyzeProgress.total
+                      : "...")
+                  : "Analyze Photos"
+              }
+              onPress={handleAnalyzeSelected}
+              disabled={analyzing || selectedCount === 0}
+              icon={
+                analyzing ? (
+                  <ActivityIndicator color={colors.primaryForeground} />
+                ) : (
+                  <Feather
+                    name="zap"
+                    size={16}
+                    color={colors.primaryForeground}
+                  />
+                )
+              }
+            />
+          </View>
+        ) : null}
+
+        <View
+          style={[
+            styles.disclaimer,
+            { borderColor: colors.border, backgroundColor: colors.muted },
+          ]}
+        >
+          <Feather name="info" size={12} color={colors.mutedForeground} />
+          <Text
+            style={[styles.disclaimerText, { color: colors.mutedForeground }]}
+          >
+            Photos are analyzed only when you tap Analyze Photos.
+          </Text>
         </View>
 
         {loaded ? (
@@ -335,37 +521,73 @@ export default function ProgressPhotosScreen() {
                 },
               ]}
             >
-              <Text style={[styles.dayLabel, { color: colors.mutedForeground }]}>
-                {formatDateLong(group.date).toUpperCase()}{"  \u00B7  "}
+              <Text
+                style={[styles.dayLabel, { color: colors.mutedForeground }]}
+              >
+                {formatDateLong(group.date).toUpperCase()}
+                {"  \u00B7  "}
                 {group.photos.length}{" "}
                 {group.photos.length === 1 ? "photo" : "photos"}
               </Text>
               <View style={styles.grid}>
-                {group.photos.map((p) => (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => setViewing(p)}
-                    onLongPress={() => handleDelete(p.id)}
-                    delayLongPress={400}
-                    style={({ pressed }) => [
-                      {
-                        width: cellSize,
-                        height: cellSize,
-                        borderRadius: 10,
-                        overflow: "hidden",
-                        opacity: pressed ? 0.7 : 1,
-                        backgroundColor: colors.muted,
-                      },
-                    ]}
-                  >
-                    <ExpoImage
-                      source={{ uri: p.uri }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                    />
-                  </Pressable>
-                ))}
+                {group.photos.map((p) => {
+                  const isSelected = selectedIds.has(p.id);
+                  const hasAnalysis = p.analysis != null;
+                  return (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => {
+                        if (selectMode) togglePhotoSelected(p.id);
+                        else setViewing(p);
+                      }}
+                      onLongPress={() => {
+                        if (!selectMode) handleDelete(p.id);
+                      }}
+                      delayLongPress={400}
+                      style={({ pressed }) => [
+                        {
+                          width: cellSize,
+                          height: cellSize,
+                          borderRadius: 10,
+                          overflow: "hidden",
+                          opacity: pressed ? 0.7 : 1,
+                          backgroundColor: colors.muted,
+                          borderWidth: isSelected ? 3 : 0,
+                          borderColor: isSelected
+                            ? colors.primary
+                            : "transparent",
+                        },
+                      ]}
+                    >
+                      <ExpoImage
+                        source={{ uri: p.uri }}
+                        style={{ width: "100%", height: "100%" }}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                      />
+                      {hasAnalysis ? (
+                        <View style={styles.aiBadge}>
+                          <Feather name="zap" size={10} color="#ffffff" />
+                          <Text style={styles.aiBadgeText}>AI</Text>
+                        </View>
+                      ) : null}
+                      {isSelected ? (
+                        <View
+                          style={[
+                            styles.selectedCheck,
+                            { backgroundColor: colors.primary },
+                          ]}
+                        >
+                          <Feather
+                            name="check"
+                            size={14}
+                            color={colors.primaryForeground}
+                          />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
           ))
@@ -378,10 +600,11 @@ export default function ProgressPhotosScreen() {
         animationType="fade"
         onRequestClose={() => setViewing(null)}
       >
-        <Pressable
-          style={styles.viewerBackdrop}
-          onPress={() => setViewing(null)}
-        >
+        <View style={styles.viewerBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setViewing(null)}
+          />
           {viewing ? (
             <>
               <ExpoImage
@@ -389,26 +612,70 @@ export default function ProgressPhotosScreen() {
                 style={styles.viewerImage}
                 contentFit="contain"
               />
-              <View
+              <ScrollView
                 style={[
-                  styles.viewerMeta,
+                  styles.viewerSheet,
                   { paddingBottom: insets.bottom + 16 },
                 ]}
+                contentContainerStyle={styles.viewerSheetContent}
               >
-                <Text style={styles.viewerDate}>
-                  {formatDateLong(viewing.date)}
-                </Text>
-                <Pressable
-                  onPress={() => handleDelete(viewing.id)}
-                  hitSlop={10}
-                  style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-                >
-                  <Feather name="trash-2" size={20} color="#fafafa" />
-                </Pressable>
-              </View>
+                <View style={styles.viewerTopRow}>
+                  <Text style={styles.viewerDate}>
+                    {formatDateLong(viewing.date)}
+                  </Text>
+                  <Pressable
+                    onPress={() => handleDelete(viewing.id)}
+                    hitSlop={10}
+                    style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                  >
+                    <Feather name="trash-2" size={20} color="#fafafa" />
+                  </Pressable>
+                </View>
+
+                {viewing.analysis ? (
+                  <View style={styles.analysisCard}>
+                    <View style={styles.analysisHeader}>
+                      <Feather name="zap" size={12} color="#2979FF" />
+                      <Text style={styles.analysisLabel}>
+                        AI COACH ANALYSIS
+                      </Text>
+                    </View>
+                    <Text style={styles.analysisBody}>
+                      {viewing.analysis.text}
+                    </Text>
+                    <Text style={styles.analysisMeta}>
+                      Analyzed{" "}
+                      {new Date(viewing.analysis.analyzedAt).toLocaleString(
+                        undefined,
+                        {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        },
+                      )}
+                    </Text>
+                  </View>
+                ) : (
+                  <PrimaryButton
+                    label={
+                      viewerAnalyzing ? "Analyzing..." : "Analyze This Photo"
+                    }
+                    onPress={handleAnalyzeViewing}
+                    disabled={viewerAnalyzing}
+                    icon={
+                      viewerAnalyzing ? (
+                        <ActivityIndicator color="#ffffff" />
+                      ) : (
+                        <Feather name="zap" size={16} color="#ffffff" />
+                      )
+                    }
+                  />
+                )}
+              </ScrollView>
             </>
           ) : null}
-        </Pressable>
+        </View>
       </Modal>
     </>
   );
@@ -433,6 +700,31 @@ const styles = StyleSheet.create({
   btnRow: {
     flexDirection: "row",
     gap: 10,
+  },
+  disclaimer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  disclaimerText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    lineHeight: 16,
+    flex: 1,
+  },
+  selectBar: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+  },
+  selectCount: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
   },
   coachCard: {
     padding: 14,
@@ -471,23 +763,57 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: GAP,
   },
+  aiBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: "rgba(41, 121, 255, 0.92)",
+  },
+  aiBadgeText: {
+    color: "#ffffff",
+    fontFamily: "Inter_700Bold",
+    fontSize: 9,
+    letterSpacing: 0.6,
+  },
+  selectedCheck: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   viewerBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   viewerImage: {
     width: "100%",
-    height: "85%",
+    height: "55%",
+    marginTop: "8%",
   },
-  viewerMeta: {
+  viewerSheet: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    maxHeight: "45%",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  viewerSheetContent: {
+    gap: 12,
+    paddingBottom: 24,
+  },
+  viewerTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -496,5 +822,35 @@ const styles = StyleSheet.create({
     color: "#fafafa",
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
+  },
+  analysisCard: {
+    backgroundColor: "rgba(41, 121, 255, 0.12)",
+    borderColor: "rgba(41, 121, 255, 0.45)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
+  },
+  analysisHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  analysisLabel: {
+    color: "#2979FF",
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    letterSpacing: 1.2,
+  },
+  analysisBody: {
+    color: "#fafafa",
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  analysisMeta: {
+    color: "rgba(250,250,250,0.55)",
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
   },
 });

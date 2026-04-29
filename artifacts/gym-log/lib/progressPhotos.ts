@@ -4,11 +4,18 @@ import { Platform } from "react-native";
 
 import { makeId } from "./storage";
 
+export type ProgressPhotoAnalysis = {
+  text: string;
+  analyzedAt: number;
+  model: string;
+};
+
 export type ProgressPhoto = {
   id: string;
   uri: string;
   date: number;
   note?: string;
+  analysis?: ProgressPhotoAnalysis;
 };
 
 const KEY = "gymlog.progressPhotos.v1";
@@ -56,6 +63,15 @@ async function uriToDataUri(uri: string): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error("FileReader error"));
     reader.readAsDataURL(blob);
   });
+}
+
+/**
+ * Returns the photo as a base64 data URI suitable for upload to the
+ * /analyze-progress-photo endpoint. Works for data:, blob:, and file: URIs
+ * across web and native.
+ */
+export async function getPhotoDataUri(photo: ProgressPhoto): Promise<string> {
+  return uriToDataUri(photo.uri);
 }
 
 export async function loadProgressPhotos(): Promise<ProgressPhoto[]> {
@@ -174,5 +190,24 @@ export async function deleteProgressPhoto(id: string): Promise<ProgressPhoto[]> 
   }
   const next = existing.filter((p) => p.id !== id);
   await saveAll(next);
+  return next;
+}
+
+/**
+ * Attaches an AI analysis to an existing photo and persists it. Returns the
+ * updated full list (newest-first), or the unchanged list if the id is gone.
+ */
+export async function setProgressPhotoAnalysis(
+  id: string,
+  analysis: ProgressPhotoAnalysis,
+): Promise<ProgressPhoto[]> {
+  const existing = await loadProgressPhotos();
+  let changed = false;
+  const next = existing.map((p) => {
+    if (p.id !== id) return p;
+    changed = true;
+    return { ...p, analysis };
+  });
+  if (changed) await saveAll(next);
   return next;
 }

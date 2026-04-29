@@ -160,3 +160,39 @@ export async function requestCoachRecommendations(
   }
   return (await res.json()) as CoachResponse;
 }
+
+export type AnalyzeProgressPhotoRequest = {
+  imageDataUri: string;
+  photoDate: number;
+};
+
+export type AnalyzeProgressPhotoResponse = {
+  analysis: string;
+  analyzedAt: number;
+  model: string;
+};
+
+export async function requestPhotoAnalysis(
+  input: AnalyzeProgressPhotoRequest,
+): Promise<AnalyzeProgressPhotoResponse> {
+  const url = getApiBaseUrl() + "/api/analyze-progress-photo";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    const detail =
+      body && typeof body === "object" && "error" in body
+        ? String((body as { error: unknown }).error)
+        : "request_failed";
+    throw new Error("Photo analysis failed: " + detail);
+  }
+  return (await res.json()) as AnalyzeProgressPhotoResponse;
+}
