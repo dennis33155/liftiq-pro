@@ -33,17 +33,17 @@ function rateLimited(ip: string): boolean {
 }
 
 const AvailableExerciseSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  category: z.string().min(1),
-  primaryMuscles: z.array(z.string()).optional(),
-  equipment: z.string().optional(),
+  id: z.string().min(1).max(80),
+  name: z.string().min(1).max(80),
+  category: z.string().min(1).max(40),
+  primaryMuscles: z.array(z.string().max(40)).max(8).optional(),
+  equipment: z.string().max(40).optional(),
 });
 
 const RecentWorkoutSchema = z.object({
-  date: z.string(),
-  category: z.string(),
-  exerciseNames: z.array(z.string()),
+  date: z.string().max(20),
+  category: z.string().max(40),
+  exerciseNames: z.array(z.string().max(80)).max(20),
 });
 
 const RequestSchema = z.object({
@@ -166,6 +166,13 @@ router.post("/workout-suggestion", async (req, res) => {
     .filter((s) => s !== null)
     .join("\n");
 
+  const PROMPT_CHAR_LIMIT = 16_000;
+  if (userText.length > PROMPT_CHAR_LIMIT) {
+    req.log.warn({ promptLength: userText.length }, "Prompt exceeds size limit");
+    res.status(400).json({ error: "request_too_large" });
+    return;
+  }
+
   try {
     const response = await client.messages.create({
       model: "claude-sonnet-4-5",
@@ -187,7 +194,7 @@ router.post("/workout-suggestion", async (req, res) => {
     try {
       suggestion = SuggestionSchema.parse(JSON.parse(jsonText));
     } catch (err) {
-      req.log.error({ err, raw }, "Failed to parse AI JSON");
+      req.log.error({ err }, "Failed to parse AI JSON");
       res.status(502).json({ error: "ai_invalid_json" });
       return;
     }
