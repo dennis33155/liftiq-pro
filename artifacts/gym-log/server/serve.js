@@ -17,6 +17,20 @@ const STATIC_ROOT = path.resolve(__dirname, "..", "static-build");
 const TEMPLATE_PATH = path.resolve(__dirname, "templates", "landing-page.html");
 const basePath = (process.env.BASE_PATH || "/").replace(/\/+$/, "");
 
+// =========================================================================
+// SECURITY: Trusted production domain for the Pro app's landing page.
+//
+// This constant is the SOLE source of truth for the QR code, the
+// "Open in Expo Go" deep link, and any other URL we render into the
+// landing page. We never derive these values from request headers
+// (X-Forwarded-Host / Host), so a spoofed forwarded header can no longer
+// steer mobile visitors to an attacker's Expo manifest, and there is no
+// untrusted input flowing into the HTML or inline JavaScript.
+// =========================================================================
+const BASE_URL = "https://gym-log-fast.replit.app";
+// Hostname-only form ("gym-log-fast.replit.app") for the exps:// deep link.
+const EXPS_HOSTNAME = BASE_URL.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
@@ -45,76 +59,10 @@ function getAppName() {
   }
 }
 
-// Build a fixed allowlist of hosts that we will reflect into the landing
-// page. Production deployments expose REPLIT_DOMAINS (comma-separated). When
-// it is unset (local dev / standalone), we accept any well-formed hostname
-// from the request because there is no upstream proxy to be lied to.
-function getAllowedHosts() {
-  const raw = process.env.REPLIT_DOMAINS || "";
-  return new Set(
-    raw
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-const ALLOWED_HOSTS = getAllowedHosts();
-
-// Strictly validates a "host[:port]" string. Hostnames are limited to the
-// characters defined for DNS labels plus ".". Anything else (quotes, angle
-// brackets, whitespace, control chars) is rejected outright so it can never
-// reach the HTML/JS template even if a downstream sink forgets to escape.
-const HOST_RE = /^[a-zA-Z0-9.-]{1,253}(:\d{1,5})?$/;
-
-function isValidHost(value) {
-  return typeof value === "string" && HOST_RE.test(value);
-}
-
-// Pick the request host to render in the landing page. Trusts X-Forwarded-Host
-// only when (a) it is syntactically a valid hostname and (b) it appears in the
-// allowlist (production). Falls back to the request Host header under the same
-// rules. Returns null when nothing trustworthy is available.
-function pickRequestHost(req) {
-  const forwardedRaw = req.headers["x-forwarded-host"];
-  const directRaw = req.headers["host"];
-
-  // X-Forwarded-Host can be a comma-separated chain; the leftmost entry is
-  // the original client-supplied value.
-  const forwarded =
-    typeof forwardedRaw === "string"
-      ? forwardedRaw.split(",")[0].trim()
-      : null;
-  const direct = typeof directRaw === "string" ? directRaw.trim() : null;
-
-  const candidates = [];
-  if (forwarded) candidates.push(forwarded);
-  if (direct) candidates.push(direct);
-
-  for (const candidate of candidates) {
-    if (!isValidHost(candidate)) continue;
-    const lower = candidate.toLowerCase();
-    const hostOnly = lower.split(":")[0];
-    if (ALLOWED_HOSTS.size === 0) {
-      // No allowlist configured (local dev): the format check above is the
-      // only gate. We are not rendering executable content from this value
-      // thanks to the per-context escaping below.
-      return candidate;
-    }
-    if (ALLOWED_HOSTS.has(lower) || ALLOWED_HOSTS.has(hostOnly)) {
-      return candidate;
-    }
-  }
-
-  // Production with an allowlist but no header matched: fall back to the
-  // first known good domain rather than letting an attacker steer the page.
-  if (ALLOWED_HOSTS.size > 0) {
-    return Array.from(ALLOWED_HOSTS)[0];
-  }
-  return null;
-}
-
 // Escape for use inside an HTML text node or a double-quoted HTML attribute.
+// Defense-in-depth: the values we substitute today are dev-controlled
+// constants, but escaping ensures that even a future code path that pipes a
+// less-trusted value through the same placeholder cannot break out.
 function htmlEscape(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -162,25 +110,22 @@ function serveManifest(platform, res) {
   res.end(manifest);
 }
 
-function serveLandingPage(req, res, landingPageTemplate, appName) {
-  const host = pickRequestHost(req);
-  if (!host) {
-    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
-    res.end("Bad Request");
-    return;
-  }
-
-  const html = landingPageTemplate
-    .replace(/EXPS_URL_PLACEHOLDER_ATTR/g, htmlEscape(host))
-    .replace(/EXPS_URL_PLACEHOLDER_JS/g, jsStringEscape(host))
+// The rendered landing page is fully static (no per-request input), so we
+// build it once at startup and serve the cached buffer on every request.
+function buildLandingPage(template, appName) {
+  return template
+    .replace(/EXPS_URL_PLACEHOLDER_ATTR/g, htmlEscape(EXPS_HOSTNAME))
+    .replace(/EXPS_URL_PLACEHOLDER_JS/g, jsStringEscape(EXPS_HOSTNAME))
     .replace(/APP_NAME_PLACEHOLDER/g, htmlEscape(appName));
+}
 
+function serveLandingPage(res, renderedHtml) {
   res.writeHead(200, {
     "content-type": "text/html; charset=utf-8",
     "content-security-policy":
       "default-src 'self'; script-src 'self' https://unpkg.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none';",
   });
-  res.end(html);
+  res.end(renderedHtml);
 }
 
 function serveStaticFile(urlPath, res) {
@@ -208,11 +153,15 @@ function serveStaticFile(urlPath, res) {
 
 const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
 const appName = getAppName();
+const renderedLandingPage = buildLandingPage(landingPageTemplate, appName);
 
 const server = http.createServer((req, res) => {
+  // Note: req.headers.host is used here ONLY to satisfy the URL parser's
+  // requirement for a base. The parsed value is never reflected back into
+  // any response body — only `pathname` is read out of `url`.
   let url;
   try {
-    url = new URL(req.url || "/", `http://${req.headers.host}`);
+    url = new URL(req.url || "/", "http://placeholder.invalid");
   } catch {
     res.writeHead(400, { "content-type": "text/plain" });
     res.end("Bad Request");
@@ -231,7 +180,7 @@ const server = http.createServer((req, res) => {
     }
 
     if (pathname === "/") {
-      return serveLandingPage(req, res, landingPageTemplate, appName);
+      return serveLandingPage(res, renderedLandingPage);
     }
   }
 
@@ -242,18 +191,6 @@ const server = http.createServer((req, res) => {
 // module is imported (e.g. by tests) the helpers below are still exported,
 // but the HTTP server stays dormant.
 if (require.main === module) {
-  // Loud warning when there is no allowlist: in that mode any well-formed
-  // X-Forwarded-Host is reflected into the landing page (still escaped, but
-  // the QR code / deep link can be steered to an attacker's Expo host). This
-  // is intended only for local dev; production deployments must set
-  // REPLIT_DOMAINS to a comma-separated list of trusted hostnames.
-  if (ALLOWED_HOSTS.size === 0) {
-    console.warn(
-      "[serve.js] WARNING: REPLIT_DOMAINS is not set. The landing page " +
-        "will accept any syntactically valid X-Forwarded-Host. Set " +
-        "REPLIT_DOMAINS to a comma-separated allowlist for production.",
-    );
-  }
   const port = parseInt(process.env.PORT || "3000", 10);
   server.listen(port, "0.0.0.0", () => {
     console.log(`Serving static Expo build on port ${port}`);
@@ -261,8 +198,9 @@ if (require.main === module) {
 }
 
 module.exports = {
-  pickRequestHost,
-  isValidHost,
+  BASE_URL,
+  EXPS_HOSTNAME,
   htmlEscape,
   jsStringEscape,
+  buildLandingPage,
 };
