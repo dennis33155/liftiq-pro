@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/EmptyState";
 import { ExerciseImage } from "@/components/ExerciseImage";
+import { MuscleChips } from "@/components/MuscleChips";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { RestTimer } from "@/components/RestTimer";
 import { SetRow } from "@/components/SetRow";
@@ -301,13 +302,14 @@ function ExerciseBlock({
             <Text style={[styles.exName, { color: colors.foreground }]}>
               {exercise.name}
             </Text>
-            <Text
-              style={[styles.exHint, { color: colors.mutedForeground }]}
-              numberOfLines={1}
-            >
-              {(exercise.primaryMuscles?.[0] ?? exercise.category) +
-                "  \u00B7  Tap for muscles"}
-            </Text>
+            {exercise.equipment ? (
+              <Text
+                style={[styles.exHint, { color: colors.mutedForeground }]}
+                numberOfLines={1}
+              >
+                {exercise.equipment}
+              </Text>
+            ) : null}
           </View>
         </Pressable>
         <Pressable
@@ -317,6 +319,14 @@ function ExerciseBlock({
         >
           <Feather name="more-horizontal" size={18} color={colors.mutedForeground} />
         </Pressable>
+      </View>
+
+      <View style={{ marginBottom: 12 }}>
+        <MuscleChips
+          primary={exercise.primaryMuscles}
+          secondary={exercise.secondaryMuscles}
+          compact
+        />
       </View>
 
       <View

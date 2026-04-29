@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ExerciseImage } from "@/components/ExerciseImage";
+import { MuscleChips } from "@/components/MuscleChips";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 import {
@@ -273,19 +274,31 @@ export default function ExercisePicker() {
             ]}
           >
             <ExerciseImage size={40} />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: 6 }}>
               <Text style={[styles.name, { color: colors.foreground }]}>
                 {item.name}
+                {item.isCustom ? (
+                  <Text
+                    style={[styles.cat, { color: colors.mutedForeground }]}
+                  >
+                    {"  \u00B7  custom"}
+                  </Text>
+                ) : null}
               </Text>
-              <Text
-                style={[styles.cat, { color: colors.mutedForeground }]}
-                numberOfLines={1}
-              >
-                {item.primaryMuscles && item.primaryMuscles.length > 0
-                  ? item.primaryMuscles[0]
-                  : item.category}
-                {item.isCustom ? " \u00B7 custom" : ""}
-              </Text>
+              {item.primaryMuscles && item.primaryMuscles.length > 0 ? (
+                <MuscleChips
+                  primary={item.primaryMuscles}
+                  secondary={item.secondaryMuscles}
+                  compact
+                />
+              ) : (
+                <Text
+                  style={[styles.cat, { color: colors.mutedForeground }]}
+                  numberOfLines={1}
+                >
+                  {item.category}
+                </Text>
+              )}
             </View>
             <Pressable
               onPress={() => handleInfo(item)}

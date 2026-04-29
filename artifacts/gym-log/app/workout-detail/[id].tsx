@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ExerciseImage } from "@/components/ExerciseImage";
+import { MuscleChips } from "@/components/MuscleChips";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 import { formatDate } from "@/lib/format";
@@ -132,20 +133,16 @@ export default function WorkoutDetailScreen() {
               ]}
             >
               <ExerciseImage size={36} />
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, gap: 6 }}>
                 <Text style={[styles.exName, { color: colors.foreground }]}>
                   {ex?.name ?? "Exercise"}
                 </Text>
                 {ex?.primaryMuscles && ex.primaryMuscles.length > 0 ? (
-                  <Text
-                    style={[
-                      styles.exSub,
-                      { color: colors.mutedForeground },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {ex.primaryMuscles[0]}
-                  </Text>
+                  <MuscleChips
+                    primary={ex.primaryMuscles}
+                    secondary={ex.secondaryMuscles}
+                    compact
+                  />
                 ) : null}
               </View>
               {ex ? (
