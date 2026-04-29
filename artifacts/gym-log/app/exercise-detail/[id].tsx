@@ -1,9 +1,14 @@
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActionSheetIOS,
+  Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ExerciseImage } from "@/components/ExerciseImage";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
+import { useExerciseImageOverride } from "@/lib/exerciseImages";
 import { describeFreshness } from "@/lib/recommendation";
 import {
   getLastPerformance,
@@ -36,6 +42,129 @@ export default function ExerciseDetailScreen() {
     ? allExercises.find((e) => e.id === exerciseId)
     : undefined;
   const [imageOpen, setImageOpen] = useState(false);
+  const {
+    hasOverride,
+    setOverride: saveOverride,
+    clearOverride,
+  } = useExerciseImageOverride(exerciseId);
+
+  const pickFromLibrary = async () => {
+    if (!exerciseId) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        "Permission needed",
+        "Allow photo library access in Settings to choose an image.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const sourceUri = result.assets[0].uri;
+    try {
+      const safeId = exerciseId.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const dir = `${FileSystem.documentDirectory}exercise-images/`;
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+      const ext = (sourceUri.split(".").pop()?.split("?")[0] || "jpg")
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .slice(0, 5) || "jpg";
+      const dest = `${dir}${safeId}_${Date.now()}.${ext}`;
+      await FileSystem.copyAsync({ from: sourceUri, to: dest });
+      await saveOverride(dest);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert("Could not save image", String(e));
+    }
+  };
+
+  const takePhoto = async () => {
+    if (!exerciseId) return;
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        "Permission needed",
+        "Allow camera access in Settings to take a photo.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const sourceUri = result.assets[0].uri;
+    try {
+      const safeId = exerciseId.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const dir = `${FileSystem.documentDirectory}exercise-images/`;
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+      const dest = `${dir}${safeId}_${Date.now()}.jpg`;
+      await FileSystem.copyAsync({ from: sourceUri, to: dest });
+      await saveOverride(dest);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert("Could not save image", String(e));
+    }
+  };
+
+  const resetImage = () => {
+    Alert.alert(
+      "Reset image",
+      "Restore the default image for this exercise?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            void clearOverride();
+            Haptics.selectionAsync();
+          },
+        },
+      ],
+    );
+  };
+
+  const openChangeImage = () => {
+    Haptics.selectionAsync();
+    const options = hasOverride
+      ? ["Choose from Library", "Take Photo", "Reset to default", "Cancel"]
+      : ["Choose from Library", "Take Photo", "Cancel"];
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: options.length - 1,
+          destructiveButtonIndex: hasOverride ? 2 : undefined,
+          userInterfaceStyle: "dark",
+        },
+        (idx) => {
+          if (idx === 0) void pickFromLibrary();
+          else if (idx === 1) void takePhoto();
+          else if (hasOverride && idx === 2) resetImage();
+        },
+      );
+    } else {
+      Alert.alert("Change image", undefined, [
+        { text: "Choose from Library", onPress: () => void pickFromLibrary() },
+        { text: "Take Photo", onPress: () => void takePhoto() },
+        ...(hasOverride
+          ? [
+              {
+                text: "Reset to default",
+                style: "destructive" as const,
+                onPress: resetImage,
+              },
+            ]
+          : []),
+        { text: "Cancel", style: "cancel" as const },
+      ]);
+    }
+  };
 
   if (!exercise) {
     return (
@@ -107,6 +236,19 @@ export default function ExerciseDetailScreen() {
           >
             Visual guide {"\u00B7"} tap to enlarge
           </Text>
+          <Text style={[styles.visualGuideDot, { color: colors.mutedForeground }]}>
+            {"\u00B7"}
+          </Text>
+          <Pressable
+            onPress={openChangeImage}
+            hitSlop={8}
+            accessibilityLabel="Change image"
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Text style={[styles.visualGuideAction, { color: colors.primary }]}>
+              {hasOverride ? "Change image" : "Use my own"}
+            </Text>
+          </Pressable>
         </View>
         <View style={styles.titleBlock}>
           <Text style={[styles.title, { color: colors.foreground }]}>
@@ -386,6 +528,16 @@ const styles = StyleSheet.create({
   },
   visualGuideText: {
     fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
+  visualGuideDot: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    opacity: 0.6,
+  },
+  visualGuideAction: {
+    fontFamily: "Inter_600SemiBold",
     fontSize: 11,
     letterSpacing: 0.4,
   },

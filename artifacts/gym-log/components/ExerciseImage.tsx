@@ -5,15 +5,16 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { useExerciseImage } from "@/lib/exerciseImages";
 import type { Category, Exercise } from "@/lib/types";
 
 type Props = {
   size?: number;
-  exercise?: Pick<Exercise, "category" | "equipment" | "imageUrl"> | null;
+  exercise?: Pick<Exercise, "id" | "category" | "equipment" | "imageUrl"> | null;
   large?: boolean;
   /** When `large`, render the image fitted (contain) instead of cropped. */
   contain?: boolean;
-  /** When `large` and showing a placeholder, render the "Image coming soon" caption. */
+  /** When `large` and showing a placeholder, render the placeholder caption. */
   showPlaceholderCaption?: boolean;
 };
 
@@ -84,14 +85,16 @@ export function ExerciseImage({
     ? CATEGORY_GRADIENT[category]
     : [colors.accent, colors.accent];
 
+  const resolvedUrl = useExerciseImage(exercise?.id, exercise?.imageUrl);
+
   React.useEffect(() => {
     setImgFailed(false);
-  }, [exercise?.imageUrl]);
+  }, [resolvedUrl]);
 
-  if (exercise?.imageUrl && !imgFailed) {
+  if (resolvedUrl && !imgFailed) {
     return (
       <ExpoImage
-        source={{ uri: exercise.imageUrl }}
+        source={{ uri: resolvedUrl }}
         onError={() => setImgFailed(true)}
         style={
           large
@@ -110,12 +113,14 @@ export function ExerciseImage({
         }
         contentFit={large && contain ? "contain" : "cover"}
         cachePolicy="memory-disk"
+        transition={150}
       />
     );
   }
 
   if (large) {
     const iconSize = 96;
+    const caption = imgFailed ? "Image unavailable" : "Image coming soon";
     return (
       <View
         style={[
@@ -131,7 +136,7 @@ export function ExerciseImage({
         />
         <IconForKind kind={pickIcon(exercise?.equipment)} size={iconSize} />
         {showPlaceholderCaption ? (
-          <Text style={styles.placeholderCaption}>Image coming soon</Text>
+          <Text style={styles.placeholderCaption}>{caption}</Text>
         ) : null}
       </View>
     );

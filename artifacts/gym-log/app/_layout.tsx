@@ -18,6 +18,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { HeaderRight } from "@/components/HeaderRight";
 import { WorkoutProvider } from "@/context/WorkoutContext";
 import { CustomScheduleProvider } from "@/lib/customSchedule";
+import { ExerciseImagesProvider } from "@/lib/exerciseImages";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -123,8 +124,10 @@ export default function RootLayout() {
             <KeyboardProvider>
               <WorkoutProvider>
                 <CustomScheduleProvider>
-                  <StatusBar style="light" />
-                  <RootLayoutNav />
+                  <ExerciseImagesProvider>
+                    <StatusBar style="light" />
+                    <RootLayoutNav />
+                  </ExerciseImagesProvider>
                 </CustomScheduleProvider>
               </WorkoutProvider>
             </KeyboardProvider>
