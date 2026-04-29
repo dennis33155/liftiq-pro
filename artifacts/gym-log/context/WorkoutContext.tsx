@@ -30,6 +30,7 @@ import {
 } from "@/lib/prDetection";
 import { buildSuggestedWorkout } from "@/lib/recommendation";
 import {
+  CATEGORY_DEFAULT_EXERCISES,
   FINISHER_EXERCISE_IDS,
   WARMUP_EXERCISE_IDS,
   WARMUP_PRESETS,
@@ -152,22 +153,22 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const buildWarmupBlocks = useCallback((): WorkoutExercise[] => {
-    return WARMUP_EXERCISE_IDS.filter((id) =>
-      [...SEED_EXERCISES, ...customExercises].some((e) => e.id === id),
-    ).map((id) =>
-      makeWorkoutExercise(id, {
-        weight: WARMUP_PRESETS[id]?.weight ?? null,
-        reps: WARMUP_PRESETS[id]?.reps ?? null,
-      }),
-    );
-  }, [customExercises, makeWorkoutExercise]);
-
   const buildFinisherBlocks = useCallback((): WorkoutExercise[] => {
     return FINISHER_EXERCISE_IDS.filter((id) =>
       [...SEED_EXERCISES, ...customExercises].some((e) => e.id === id),
     ).map((id) => makeWorkoutExercise(id));
   }, [customExercises, makeWorkoutExercise]);
+
+  const buildCategoryDefaultBlocks = useCallback(
+    (category: Category): WorkoutExercise[] => {
+      const ids = CATEGORY_DEFAULT_EXERCISES[category] ?? [];
+      const pool = [...SEED_EXERCISES, ...customExercises];
+      return ids
+        .filter((id) => pool.some((e) => e.id === id))
+        .map((id) => makeWorkoutExercise(id));
+    },
+    [customExercises, makeWorkoutExercise],
+  );
 
   const insertBeforeFinisher = useCallback(
     (
@@ -190,7 +191,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const startWorkout = useCallback(
     (category: Category): Workout => {
       const exercises = [
-        ...buildWarmupBlocks(),
+        ...buildCategoryDefaultBlocks(category),
         ...buildFinisherBlocks(),
       ];
       const newWorkout: Workout = {
@@ -204,7 +205,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       setActive(newWorkout);
       return newWorkout;
     },
-    [buildWarmupBlocks, buildFinisherBlocks],
+    [buildCategoryDefaultBlocks, buildFinisherBlocks],
   );
 
   const endWorkout = useCallback(() => {
@@ -337,14 +338,13 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
-      const warmup = buildWarmupBlocks();
       const finisher = buildFinisherBlocks();
       const newWorkout: Workout = {
         id: makeId(),
         category,
         startedAt: Date.now(),
         endedAt: null,
-        exercises: [...warmup, ...aiBlocks, ...finisher],
+        exercises: [...aiBlocks, ...finisher],
       };
       setPendingPR(null);
       setActive(newWorkout);
@@ -353,7 +353,6 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     [
       customExercises,
       workouts,
-      buildWarmupBlocks,
       buildFinisherBlocks,
       buildWorkoutExerciseFromAi,
     ],
@@ -361,7 +360,6 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
   const startSuggestedWorkout = useCallback(
     (category: Category, count: number = 5): Workout => {
-      const warmup = buildWarmupBlocks();
       const finisher = buildFinisherBlocks();
       const exclude = [...WARMUP_EXERCISE_IDS, ...FINISHER_EXERCISE_IDS];
       const suggestions = buildSuggestedWorkout(
@@ -379,7 +377,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         category,
         startedAt: Date.now(),
         endedAt: null,
-        exercises: [...warmup, ...mains, ...finisher],
+        exercises: [...mains, ...finisher],
       };
       setPendingPR(null);
       setActive(newWorkout);
@@ -388,7 +386,6 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     [
       customExercises,
       workouts,
-      buildWarmupBlocks,
       buildFinisherBlocks,
       makeWorkoutExercise,
     ],
@@ -602,7 +599,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
           justifyContent: "center",
         }}
       >
-        <ActivityIndicator color="#dc2626" />
+        <ActivityIndicator color="#2979FF" />
       </View>
     );
   }

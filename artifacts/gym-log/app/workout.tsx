@@ -20,6 +20,7 @@ import { PRCelebrationModal } from "@/components/PRCelebrationModal";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { RestTimer } from "@/components/RestTimer";
 import { SetRow } from "@/components/SetRow";
+import { WarmupSection } from "@/components/WarmupSection";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 import { formatTimer } from "@/lib/format";
@@ -192,6 +193,7 @@ export default function WorkoutScreen() {
         bottomOffset={20}
         showsVerticalScrollIndicator={false}
       >
+        <WarmupSection />
         {active.exercises.length === 0 ? (
           <View style={{ minHeight: 320 }}>
             <EmptyState
