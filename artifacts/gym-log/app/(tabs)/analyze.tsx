@@ -482,59 +482,79 @@ export default function AnalyzeScreen() {
               "  \u00B7  " +
               h.angle.toUpperCase();
             return (
-              <Pressable
+              <View
                 key={h.id}
-                onPress={() => setActiveId(h.id)}
-                style={({ pressed }) => [
+                style={[
                   styles.histRow,
                   {
                     backgroundColor: colors.card,
                     borderColor: isActive ? colors.primary : colors.border,
-                    opacity: pressed ? 0.7 : 1,
                   },
                 ]}
               >
-                <View>
-                  <Image
-                    source={{ uri: h.photoUris[0] }}
-                    style={styles.histThumb}
-                  />
-                  {h.photoUris.length > 1 ? (
-                    <View
-                      style={[
-                        styles.histCountBadge,
-                        { backgroundColor: colors.primary },
-                      ]}
-                    >
-                      <Text
+                <Pressable
+                  onPress={() => setActiveId(h.id)}
+                  style={({ pressed }) => [
+                    styles.histRowSelect,
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  <View>
+                    <Image
+                      source={{ uri: h.photoUris[0] }}
+                      style={styles.histThumb}
+                    />
+                    {h.photoUris.length > 1 ? (
+                      <View
                         style={[
-                          styles.histCountText,
-                          { color: colors.primaryForeground },
+                          styles.histCountBadge,
+                          { backgroundColor: colors.primary },
                         ]}
                       >
-                        {h.photoUris.length}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.histTitle,
-                      { color: colors.foreground },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {dateText}
-                  </Text>
-                  <Text
-                    style={[styles.histSub, { color: colors.mutedForeground }]}
-                    numberOfLines={2}
-                  >
-                    {h.analysis.overallSummary}
-                  </Text>
-                </View>
-              </Pressable>
+                        <Text
+                          style={[
+                            styles.histCountText,
+                            { color: colors.primaryForeground },
+                          ]}
+                        >
+                          {h.photoUris.length}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.histTitle,
+                        { color: colors.foreground },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {dateText}
+                    </Text>
+                    <Text
+                      style={[styles.histSub, { color: colors.mutedForeground }]}
+                      numberOfLines={2}
+                    >
+                      {h.analysis.overallSummary}
+                    </Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleDelete(h.id)}
+                  hitSlop={12}
+                  style={({ pressed }) => [
+                    styles.histDeleteBtn,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name="trash-2" size={16} color={colors.primary} />
+                </Pressable>
+              </View>
             );
           })}
         </View>
@@ -593,10 +613,20 @@ function AnalysisCard({
         </View>
         <Pressable
           onPress={() => onDelete(analysis.id)}
-          hitSlop={8}
-          style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.deletePill,
+            {
+              backgroundColor: colors.background,
+              borderColor: colors.primary,
+              opacity: pressed ? 0.6 : 1,
+            },
+          ]}
         >
-          <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+          <Feather name="trash-2" size={14} color={colors.primary} />
+          <Text style={[styles.deletePillText, { color: colors.primary }]}>
+            Delete
+          </Text>
         </Pressable>
       </View>
 
@@ -858,11 +888,41 @@ const styles = StyleSheet.create({
   },
   histRow: {
     flexDirection: "row",
-    gap: 12,
-    padding: 10,
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
+  },
+  histRowSelect: {
+    flex: 1,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  histDeleteBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deletePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  deletePillText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
   histThumb: {
     width: 44,
