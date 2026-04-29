@@ -1,0 +1,420 @@
+Perfect. Here is your complete app specification for Replit — copy this entire document and give it to your Replit AI agent to build.
+
+DENNIS WORKOUT TRACKER — REPLIT BUILD SPEC
+Native iOS App — SwiftUI
+
+OVERVIEW
+Build a native iOS workout tracking app in SwiftUI. The app is for a single user named Dennis who trains at AMP Fitness in Pompano Beach, Florida. The app should feel fast, clean, and built for real gym use — large tap targets, minimal navigation, everything accessible in 2 taps or less during a workout.
+
+TECH STACK
+	•	Language: Swift
+	•	UI Framework: SwiftUI
+	•	Data Persistence: SwiftData or CoreData (your choice — SwiftData preferred if iOS 17+)
+	•	No backend required — everything local on device
+	•	Target: iOS 16+
+
+COLOR SCHEME
+
+Background:     #0D0D0D
+Surface:        #161616
+Border:         #242424
+Text:           #F0EDE8
+Subtext:        #888888
+Accent:         #E8FF47  (yellow-green)
+Red:            #FF5A5A
+Orange:         #FF8C3D
+Blue:           #4DC8FF
+Green:          #3DFF8F
+Gold:           #FFD700
+
+
+SCREENS
+1. HOME SCREEN
+	•	Show current day of week and date
+	•	Show which muscle group is scheduled for today based on the weekly split
+	•	Show current training streak (days in a row trained)
+	•	6 muscle group buttons in a 2x3 grid: Chest, Back, Legs, Arms, Shoulders, Full Body
+	•	Each button has the muscle group color accent on top border
+	•	Tap any button to start a workout for that group
+	•	Recent sessions list at the bottom (last 3)
+	•	Button to view full history
+2. ACTIVE WORKOUT SCREEN
+Top bar (sticky):
+	•	Muscle group name and color
+	•	Live elapsed timer (MM:SS) — starts when workout begins
+	•	Sets completed count
+	•	Rest timer button
+Warm-up section at the very top of the exercise list:
+	•	Two input fields: Dips (reps) and Pull-ups (reps)
+	•	Show current PR next to each: “PB: 15” and “PB: 12”
+	•	If new value exceeds PB — trigger PR celebration
+Exercise cards (one per exercise):
+	•	Exercise name
+	•	Small image thumbnail (tap to expand — show larger image)
+	•	Primary muscle group label in accent color
+	•	Secondary muscles in grey
+	•	Last session performance: “Last: 50 lb x 12” in grey
+	•	Progressive overload suggestion in green: “Try: 52.5 lb x 12-13”
+	•	Set rows: set number | weight input | reps input | checkmark button
+	•	Checkmark marks set as done — turns accent yellow when done
+	•	Completing a set auto-launches rest timer
+	•	Add set button at the bottom of each card
+	•	Remove exercise button (x) top right
+Hip Abductor is always the last exercise — it cannot be removed or reordered
+Bottom of screen:
+	•	Add Exercise button (with autocomplete from exercise database)
+	•	FINISH WORKOUT button (large, accent colored)
+	•	Discard button (small, grey)
+3. PR CELEBRATION
+When any set is logged that beats the current personal best (higher weight OR same weight with more reps):
+	•	Full screen flash animation in gold (#FFD700)
+	•	Large bold text: “NEW PERSONAL BEST”
+	•	Exercise name
+	•	New weight x reps
+	•	Previous best shown below in grey
+	•	Dismiss by tapping anywhere
+	•	Also update the PB record immediately in persistent storage
+4. PERSONAL BESTS SCREEN
+	•	Organized by muscle group with tabs or sections
+	•	Show every exercise with current PR weight and reps
+	•	Warm-up PRs at the top (Dips and Pull-ups)
+	•	Tap any exercise to see PR history over time (chart if possible)
+5. HISTORY SCREEN
+	•	List of all past sessions newest first
+	•	Each row: muscle group color, muscle group name, date, duration, sets completed
+	•	Tap to expand and see full session detail
+	•	Full detail shows: every exercise, every set logged with weight and reps
+6. REST TIMER
+	•	Modal overlay
+	•	Circular countdown ring
+	•	Options: 60s / 90s / 120s
+	•	Ring turns red when under 10 seconds
+	•	Pause and resume button
+	•	Dismiss button
+
+WEEKLY SPLIT
+
+let weeklySchedule: [Int: String] = [
+    1: "chest",      // Sunday (in Swift, 1 = Sunday)
+    2: "back",       // Monday — rest day but back is the group
+    3: "back",       // Tuesday
+    4: "arms",       // Wednesday
+    5: "back",       // Thursday
+    6: "shoulders",  // Friday
+    7: "chest",      // Saturday
+]
+
+
+Actual schedule:
+	•	Wednesday: Arms
+	•	Thursday: Back
+	•	Friday: Shoulders
+	•	Saturday: Chest
+	•	Sunday: Legs
+	•	Monday: Rest
+	•	Tuesday: Rest
+
+EXERCISE DATABASE — PRE-LOADED
+WARM-UP (Every Session)
+
+Dips        — PR: 15 reps
+Pull-ups    — PR: 12 reps
+
+
+CHEST
+
+Incline DB Press
+  - Primary: Upper Chest
+  - Secondary: Front Delts, Triceps
+  - PR: 50 lb x 12
+  - Build order: 40 → 45 → 50 lb
+
+Hammer Strength Incline Press
+  - Primary: Upper Chest
+  - Secondary: Front Delts, Triceps
+  - PR: 65 lb each side x 11
+  - Build order: 45 → 55 → 65 lb each side
+
+Hammer Strength Supine Press
+  - Primary: Mid Chest
+  - Secondary: Front Delts, Triceps
+  - PR: 70 lb each side x 10
+  - Build order: 55 → 65 → 70 lb each side
+
+Foreman FLY-231 Incline Fly
+  - Primary: Upper Chest
+  - Secondary: Serratus
+  - PR: 35 lb each side x 7
+  - Open at 25 lb each side
+
+Dumbbell Pullover
+  - Primary: Chest
+  - Secondary: Lats, Serratus
+  - PR: 55 lb x 12
+
+Cable Fly Tri-set
+  - Primary: Chest (all angles)
+  - Note: Top → Mid → Bottom, 3 rounds
+  - Weights: 17.5 / 17.5 / 12.5 lb
+
+Hip Abductor (LOCKED FINISHER)
+  - Primary: Glutes
+  - Secondary: Hip Abductors, TFL
+  - PR: 165 lb x 15
+
+
+BACK
+
+Lat Pulldown
+  - Primary: Lats
+  - Secondary: Biceps, Rear Delts
+  - PR: 110 lb x 12
+  - Note: Superset — wide grip then reverse grip, same weight
+
+Seated Row (MAG grip)
+  - Primary: Mid Back
+  - Secondary: Rhomboids, Biceps
+  - PR: 115 lb x 15
+
+Single Arm DB Row
+  - Primary: Lats
+  - Secondary: Rhomboids, Rear Delts
+  - PR: 55 lb x 12 each arm
+  - Build order: 40 → 55 lb
+
+Rear Delt Machine
+  - Primary: Rear Delts
+  - Secondary: Rhomboids, Traps
+  - PR: 70 lb x 8
+
+Face Pulls
+  - Primary: Rear Delts
+  - Secondary: Rotator Cuff, Traps
+  - Note: Light weight, 15-20 reps
+
+Dumbbell Pullover
+  - Primary: Lats
+  - Secondary: Chest, Serratus
+  - PR: 55 lb x 12
+
+Hip Abductor (LOCKED FINISHER)
+  - PR: 165 lb x 15
+
+
+ARMS
+
+DB Curls (with arm blaster)
+  - Primary: Biceps
+  - Secondary: Brachialis
+  - PR: 25 lb x 12 each arm
+  - Note: Arm blaster locks elbows
+
+Hammer Curls
+  - Primary: Brachialis
+  - Secondary: Biceps, Forearms
+  - PR: 27.5 lb x 12 each arm
+  - Note: Neutral grip, no arm blaster
+
+Cable Curls
+  - Primary: Biceps
+  - Secondary: Brachialis
+  - PR: 35 lb x 12
+
+Rope Pushdown
+  - Primary: Triceps
+  - Secondary: none
+  - PR: 40 lb x 15
+  - Note: Split rope at bottom
+
+Overhead Tricep Extension
+  - Primary: Triceps (long head)
+  - Secondary: none
+  - PR: 60 lb x 15
+
+Cable Overhead Extension
+  - Primary: Triceps (long head)
+  - Secondary: none
+  - PR: 35 lb x 12
+
+Hip Abductor (LOCKED FINISHER)
+  - PR: 165 lb x 15
+
+
+SHOULDERS
+
+DB Shoulder Press
+  - Primary: Front Delts
+  - Secondary: Side Delts, Triceps
+  - PR: 50 lb x 14
+  - Build order: 40 → 45 → 50 lb (ALWAYS warm up, never start at PR)
+
+Lateral Raise Machine
+  - Primary: Side Delts
+  - Secondary: none
+  - PR: 75 lb x 12
+  - Build order: 65 → 70 → 75 lb
+
+Cable Lateral Raise
+  - Primary: Side Delts
+  - Secondary: none
+  - PR: 15 lb x 10 strict
+
+DB Shrugs
+  - Primary: Upper Traps
+  - Secondary: none
+  - PR: 50 lb x 15 (all 3 sets same weight)
+
+Foreman FLY-217 Low Row
+  - Primary: Rear Delts
+  - Secondary: Rhomboids
+  - PR: 25 lb each side x 10
+
+Hip Abductor (LOCKED FINISHER)
+  - PR: 165 lb x 15
+
+
+LEGS
+
+Back Squat
+  - Primary: Quads
+  - Secondary: Glutes, Hamstrings, Core
+  - PR: 195 lb x 12
+  - Build order: 135 → 155 → 175 → 195 lb
+  - IMPORTANT: Always wear knee sleeves (ACL/MCL history)
+
+Leg Press
+  - Primary: Quads
+  - Secondary: Glutes, Hamstrings
+  - PR: 180 lb x 12
+  - Note: Start light after squats. High foot = more glutes
+
+Leg Extension
+  - Primary: Quads
+  - Secondary: none
+  - PR: 90 lb x 9
+  - Note: Machine goes in 10 lb increments
+
+Leg Curl
+  - Primary: Hamstrings
+  - Secondary: none
+  - Note: Moderate weight, slow negative
+
+Calf Raises
+  - Primary: Calves
+  - Secondary: Soleus
+  - Note: 20 slow reps, full stretch at bottom
+
+Hip Abductor (LOCKED FINISHER)
+  - Primary: Glutes
+  - Secondary: Hip Abductors, TFL
+  - PR: 165 lb x 15
+  - Build order: 150 → 160 → 165 lb
+
+
+FULL BODY
+
+Back Squat         — PR: 195 lb x 12
+DB Shoulder Press  — PR: 50 lb x 14
+Lat Pulldown       — PR: 110 lb x 12
+DB Curls           — PR: 25 lb x 12
+Rope Pushdown      — PR: 40 lb x 15
+Hip Abductor       — PR: 165 lb x 15 (LOCKED FINISHER)
+
+
+PROGRESSIVE OVERLOAD LOGIC
+
+func suggestNextWeight(lastWeight: Double, lastReps: Int) -> String {
+    let nextWeight = lastWeight + 2.5
+    let nextRepsLow = lastReps
+    let nextRepsHigh = lastReps + 1
+    return "\(nextWeight) lb x \(nextRepsLow)-\(nextRepsHigh)"
+}
+
+
+Show this suggestion in green on every exercise card below the last performance.
+
+PR DETECTION LOGIC
+
+func isNewPR(exercise: String, weight: Double, reps: Int) -> Bool {
+    guard let current = personalBests[exercise] else { return true }
+    if weight > current.weight { return true }
+    if weight == current.weight && reps > current.reps { return true }
+    return false
+}
+
+
+PR CELEBRATION ANIMATION
+
+// When PR is detected:
+// 1. Flash full screen gold overlay — animate opacity 0 → 1 → 0 over 1.5 seconds
+// 2. Show modal card on top with:
+//    - "NEW PERSONAL BEST" in large bold gold text
+//    - Exercise name
+//    - New weight x reps in large white text
+//    - "Previous: X lb x Y" in small grey text
+// 3. Dismiss on tap anywhere
+// 4. Immediately save new PR to persistent storage
+
+
+DATA MODELS
+
+struct WorkoutSession {
+    var id: UUID
+    var date: Date
+    var muscleGroup: String
+    var durationSeconds: Int
+    var warmupDips: Int
+    var warmupPullups: Int
+    var exercises: [LoggedExercise]
+}
+
+struct LoggedExercise {
+    var id: UUID
+    var name: String
+    var sets: [LoggedSet]
+}
+
+struct LoggedSet {
+    var id: UUID
+    var weight: Double
+    var reps: Int
+    var completed: Bool
+}
+
+struct PersonalBest {
+    var exerciseName: String
+    var weight: Double
+    var reps: Int
+    var date: Date
+}
+
+struct ExerciseDefinition {
+    var name: String
+    var muscleGroup: String
+    var primaryMuscle: String
+    var secondaryMuscles: [String]
+    var imageName: String   // asset catalog name
+}
+
+
+IMPORTANT RULES TO BUILD IN
+	1.	Hip Abductor is always the last exercise in every workout — it cannot be deleted or moved
+	2.	Warm-up (dips + pull-ups) is always at the top before any exercise
+	3.	DB Shoulder Press must always show a note: “Build up: 40 → 45 → 50 lb”
+	4.	Back Squat must always show a note: “Wear knee sleeves”
+	5.	No Romanian Deadlifts — do not include in any exercise list
+	6.	Completing a set triggers rest timer automatically
+	7.	PR check runs every time a set is marked complete
+
+MINIMUM EXERCISES PER MUSCLE GROUP
+Every muscle group must have at least 4 exercises not counting Hip Abductor and warm-up. All groups above already meet this. If the user adds a custom muscle group it must also enforce this minimum.
+
+NICE TO HAVE (build after core is working)
+	•	Friday injection reminder banner on home screen
+	•	Body weight and body fat logging with simple trend chart
+	•	Progress photos section with date stamps
+	•	Apple Health integration for workout export
+	•	Training streak with longest streak record
+
+Give this entire spec to your Replit AI agent and tell it: “Build this iOS SwiftUI app exactly as specified. Start with the data models and exercise database, then build each screen in order.”
+That’s everything it needs to build the full app from scratch with all your data pre-loaded. 💪🔥​​​​​​​​​​​​​​​​
