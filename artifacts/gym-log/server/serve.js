@@ -45,6 +45,103 @@ function getAppName() {
   }
 }
 
+// Build a fixed allowlist of hosts that we will reflect into the landing
+// page. Production deployments expose REPLIT_DOMAINS (comma-separated). When
+// it is unset (local dev / standalone), we accept any well-formed hostname
+// from the request because there is no upstream proxy to be lied to.
+function getAllowedHosts() {
+  const raw = process.env.REPLIT_DOMAINS || "";
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+const ALLOWED_HOSTS = getAllowedHosts();
+
+// Strictly validates a "host[:port]" string. Hostnames are limited to the
+// characters defined for DNS labels plus ".". Anything else (quotes, angle
+// brackets, whitespace, control chars) is rejected outright so it can never
+// reach the HTML/JS template even if a downstream sink forgets to escape.
+const HOST_RE = /^[a-zA-Z0-9.-]{1,253}(:\d{1,5})?$/;
+
+function isValidHost(value) {
+  return typeof value === "string" && HOST_RE.test(value);
+}
+
+// Pick the request host to render in the landing page. Trusts X-Forwarded-Host
+// only when (a) it is syntactically a valid hostname and (b) it appears in the
+// allowlist (production). Falls back to the request Host header under the same
+// rules. Returns null when nothing trustworthy is available.
+function pickRequestHost(req) {
+  const forwardedRaw = req.headers["x-forwarded-host"];
+  const directRaw = req.headers["host"];
+
+  // X-Forwarded-Host can be a comma-separated chain; the leftmost entry is
+  // the original client-supplied value.
+  const forwarded =
+    typeof forwardedRaw === "string"
+      ? forwardedRaw.split(",")[0].trim()
+      : null;
+  const direct = typeof directRaw === "string" ? directRaw.trim() : null;
+
+  const candidates = [];
+  if (forwarded) candidates.push(forwarded);
+  if (direct) candidates.push(direct);
+
+  for (const candidate of candidates) {
+    if (!isValidHost(candidate)) continue;
+    const lower = candidate.toLowerCase();
+    const hostOnly = lower.split(":")[0];
+    if (ALLOWED_HOSTS.size === 0) {
+      // No allowlist configured (local dev): the format check above is the
+      // only gate. We are not rendering executable content from this value
+      // thanks to the per-context escaping below.
+      return candidate;
+    }
+    if (ALLOWED_HOSTS.has(lower) || ALLOWED_HOSTS.has(hostOnly)) {
+      return candidate;
+    }
+  }
+
+  // Production with an allowlist but no header matched: fall back to the
+  // first known good domain rather than letting an attacker steer the page.
+  if (ALLOWED_HOSTS.size > 0) {
+    return Array.from(ALLOWED_HOSTS)[0];
+  }
+  return null;
+}
+
+// Escape for use inside an HTML text node or a double-quoted HTML attribute.
+function htmlEscape(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Escape for use inside a double-quoted JavaScript string literal in an
+// inline <script> block. Backslash, quotes, line terminators, and the angle
+// brackets used by </script> are all neutralized.
+function jsStringEscape(value) {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(/</g, "\\u003C")
+    .replace(/>/g, "\\u003E")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 function serveManifest(platform, res) {
   const manifestPath = path.join(STATIC_ROOT, platform, "manifest.json");
 
@@ -66,16 +163,17 @@ function serveManifest(platform, res) {
 }
 
 function serveLandingPage(req, res, landingPageTemplate, appName) {
-  const forwardedProto = req.headers["x-forwarded-proto"];
-  const protocol = forwardedProto || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"];
-  const baseUrl = `${protocol}://${host}`;
-  const expsUrl = `${host}`;
+  const host = pickRequestHost(req);
+  if (!host) {
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+    res.end("Bad Request");
+    return;
+  }
 
   const html = landingPageTemplate
-    .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
-    .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
-    .replace(/APP_NAME_PLACEHOLDER/g, appName);
+    .replace(/EXPS_URL_PLACEHOLDER_ATTR/g, htmlEscape(host))
+    .replace(/EXPS_URL_PLACEHOLDER_JS/g, jsStringEscape(host))
+    .replace(/APP_NAME_PLACEHOLDER/g, htmlEscape(appName));
 
   res.writeHead(200, {
     "content-type": "text/html; charset=utf-8",
@@ -140,7 +238,19 @@ const server = http.createServer((req, res) => {
   serveStaticFile(pathname, res);
 });
 
-const port = parseInt(process.env.PORT || "3000", 10);
-server.listen(port, "0.0.0.0", () => {
-  console.log(`Serving static Expo build on port ${port}`);
-});
+// Only start listening when invoked directly (`node serve.js`). When the
+// module is imported (e.g. by tests) the helpers below are still exported,
+// but the HTTP server stays dormant.
+if (require.main === module) {
+  const port = parseInt(process.env.PORT || "3000", 10);
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`Serving static Expo build on port ${port}`);
+  });
+}
+
+module.exports = {
+  pickRequestHost,
+  isValidHost,
+  htmlEscape,
+  jsStringEscape,
+};
