@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LiveDateTime } from "@/components/LiveDateTime";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
+import { useCustomSchedule } from "@/lib/customSchedule";
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -26,6 +27,7 @@ export default function SettingsScreen() {
     deleteCustomExercise,
     clearAllData,
   } = useWorkout();
+  const { reset: resetSchedule } = useCustomSchedule();
 
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? Math.max(insets.top, 67) : insets.top;
@@ -43,6 +45,27 @@ export default function SettingsScreen() {
           style: "destructive",
           onPress: async () => {
             await clearAllData();
+            Haptics.notificationAsync(
+              Haptics.NotificationFeedbackType.Success,
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const handleResetSchedule = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Reset Weekly Split?",
+      "This restores the default schedule (Sun Legs, Mon Rest, Tue Rest, Wed Arms, Thu Back, Fri Shoulders, Sat Chest).",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: async () => {
+            await resetSchedule();
             Haptics.notificationAsync(
               Haptics.NotificationFeedbackType.Success,
             );
@@ -183,6 +206,39 @@ export default function SettingsScreen() {
       </View>
 
       <Text style={[styles.section, { color: colors.mutedForeground }]}>
+        SCHEDULE
+      </Text>
+      <Pressable
+        onPress={handleResetSchedule}
+        style={({ pressed }) => [
+          styles.scheduleBtn,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius,
+            opacity: pressed ? 0.7 : 1,
+          },
+        ]}
+      >
+        <Feather name="refresh-ccw" size={18} color={colors.foreground} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.scheduleLabel, { color: colors.foreground }]}>
+            Reset Weekly Split
+          </Text>
+          <Text
+            style={[styles.scheduleSub, { color: colors.mutedForeground }]}
+          >
+            Restore the default 7-day schedule.
+          </Text>
+        </View>
+        <Feather
+          name="chevron-right"
+          size={18}
+          color={colors.mutedForeground}
+        />
+      </Pressable>
+
+      <Text style={[styles.section, { color: colors.mutedForeground }]}>
         DATA
       </Text>
       <Pressable
@@ -310,6 +366,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  scheduleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  scheduleLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+  scheduleSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
   },
   dangerLabel: {
     fontFamily: "Inter_600SemiBold",

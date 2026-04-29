@@ -20,9 +20,16 @@ import { CategoryCard } from "@/components/CategoryCard";
 import { LiveDateTime } from "@/components/LiveDateTime";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
+import {
+  CUSTOM_SCHEDULE_OPTIONS,
+  getEffectiveTodaySlot,
+  getEffectiveWeek,
+  useCustomSchedule,
+  type CustomScheduleValue,
+} from "@/lib/customSchedule";
 import { formatRelative } from "@/lib/format";
 import { workoutVolume } from "@/lib/progression";
-import { WEEKLY_SCHEDULE, getTodaySlot } from "@/lib/schedule";
+import type { DaySlot } from "@/lib/schedule";
 import { computeStreak } from "@/lib/streak";
 import { CATEGORIES } from "@/lib/types";
 import type { Category } from "@/lib/types";
@@ -119,8 +126,20 @@ export default function HomeScreen() {
   const streak = React.useMemo(() => computeStreak(workouts), [workouts]);
 
   const lastWorkout = workouts[0];
-  const today = getTodaySlot();
+  const { overrides, setDay: setScheduleDay } = useCustomSchedule();
+  const week = React.useMemo(() => getEffectiveWeek(overrides), [overrides]);
+  const today = React.useMemo(
+    () => getEffectiveTodaySlot(overrides),
+    [overrides],
+  );
   const todayDay = today.day;
+  const [editingDay, setEditingDay] = React.useState<DaySlot | null>(null);
+
+  const handlePickDay = async (day: number, value: CustomScheduleValue) => {
+    Haptics.selectionAsync();
+    await setScheduleDay(day, value);
+    setEditingDay(null);
+  };
 
   return (
     <>
@@ -253,18 +272,27 @@ export default function HomeScreen() {
       <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
         WEEKLY SPLIT
       </Text>
+      <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
+        Tap a day to set its workout. Reset from Settings.
+      </Text>
       <View style={styles.weekStrip}>
-        {WEEKLY_SCHEDULE.map((slot) => {
+        {week.map((slot) => {
           const isToday = slot.day === todayDay;
           return (
-            <View
+            <Pressable
               key={slot.day}
-              style={[
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setEditingDay(slot);
+              }}
+              accessibilityLabel={`Edit ${slot.long} workout`}
+              style={({ pressed }) => [
                 styles.weekPill,
                 {
                   backgroundColor: isToday ? colors.primary : colors.card,
                   borderColor: isToday ? colors.primary : colors.border,
                   borderRadius: colors.radius,
+                  opacity: pressed ? 0.75 : 1,
                 },
               ]}
             >
@@ -293,7 +321,7 @@ export default function HomeScreen() {
               >
                 {slot.isRest ? "Rest" : slot.category}
               </Text>
-            </View>
+            </Pressable>
           );
         })}
       </View>
@@ -424,6 +452,105 @@ export default function HomeScreen() {
         </Pressable>
       </Pressable>
     </Modal>
+    <Modal
+      visible={editingDay !== null}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setEditingDay(null)}
+    >
+      <Pressable
+        onPress={() => setEditingDay(null)}
+        style={[styles.modalBackdrop, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View style={styles.modalHeader}>
+            <Feather name="calendar" size={18} color={colors.primary} />
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              {editingDay ? editingDay.long : ""}
+            </Text>
+          </View>
+          <Text
+            style={[styles.modalHint, { color: colors.mutedForeground }]}
+          >
+            Choose what this day should be.
+          </Text>
+          <View style={styles.dayOptionList}>
+            {CUSTOM_SCHEDULE_OPTIONS.map((option) => {
+              const current =
+                editingDay &&
+                ((editingDay.isRest && option === "Rest") ||
+                  (!editingDay.isRest && editingDay.category === option));
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => {
+                    if (editingDay) handlePickDay(editingDay.day, option);
+                  }}
+                  style={({ pressed }) => [
+                    styles.dayOption,
+                    {
+                      backgroundColor: current
+                        ? colors.primary
+                        : colors.background,
+                      borderColor: current ? colors.primary : colors.border,
+                      borderRadius: colors.radius,
+                      opacity: pressed ? 0.8 : 1,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dayOptionText,
+                      {
+                        color: current
+                          ? colors.primaryForeground
+                          : colors.foreground,
+                      },
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                  {current ? (
+                    <Feather
+                      name="check"
+                      size={16}
+                      color={colors.primaryForeground}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable
+            onPress={() => setEditingDay(null)}
+            style={({ pressed }) => [
+              styles.modalBtn,
+              {
+                backgroundColor: colors.accent,
+                borderColor: colors.border,
+                opacity: pressed ? 0.6 : 1,
+                alignSelf: "stretch",
+              },
+            ]}
+          >
+            <Text
+              style={[styles.modalBtnLabel, { color: colors.foreground }]}
+            >
+              Cancel
+            </Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
     </>
   );
 }
@@ -434,7 +561,7 @@ function TodayCard({
   onSuggest,
   onAi,
 }: {
-  slot: ReturnType<typeof getTodaySlot>;
+  slot: DaySlot;
   onStart: () => void;
   onSuggest: () => void;
   onAi: () => void;
@@ -759,6 +886,21 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 10,
     letterSpacing: 0.2,
+  },
+  dayOptionList: {
+    gap: 8,
+  },
+  dayOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  dayOptionText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
   },
   modalBackdrop: {
     flex: 1,

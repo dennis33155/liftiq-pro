@@ -17,6 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { HeaderRight } from "@/components/HeaderRight";
 import { WorkoutProvider } from "@/context/WorkoutContext";
+import { CustomScheduleProvider } from "@/lib/customSchedule";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -121,8 +122,10 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0a0a0a" }}>
             <KeyboardProvider>
               <WorkoutProvider>
-                <StatusBar style="light" />
-                <RootLayoutNav />
+                <CustomScheduleProvider>
+                  <StatusBar style="light" />
+                  <RootLayoutNav />
+                </CustomScheduleProvider>
               </WorkoutProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
