@@ -42,6 +42,7 @@ export default function WorkoutScreen() {
   } = useWorkout();
 
   const [elapsed, setElapsed] = useState(0);
+  const [now, setNow] = useState(() => new Date());
   const [restVisible, setRestVisible] = useState(false);
   const [restSeconds, setRestSeconds] = useState(90);
 
@@ -54,12 +55,24 @@ export default function WorkoutScreen() {
   useEffect(() => {
     if (!active) return;
     const tick = () => {
-      setElapsed(Math.floor((Date.now() - active.startedAt) / 1000));
+      const current = new Date();
+      setNow(current);
+      setElapsed(Math.floor((current.getTime() - active.startedAt) / 1000));
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [active]);
+
+  const clockText = now.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const dateText = now.toLocaleDateString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 
   if (!active) return null;
 
@@ -137,6 +150,9 @@ export default function WorkoutScreen() {
           </Text>
           <Text style={[styles.headerTimer, { color: colors.mutedForeground }]}>
             {formatTimer(elapsed)} {"\u00B7"} {completedSets}/{totalSets} sets
+          </Text>
+          <Text style={[styles.headerClock, { color: colors.mutedForeground }]}>
+            {clockText} {"\u00B7"} {dateText}
           </Text>
         </View>
 
@@ -431,6 +447,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontVariant: ["tabular-nums"],
     marginTop: 2,
+  },
+  headerClock: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    fontVariant: ["tabular-nums"],
+    marginTop: 1,
+    opacity: 0.8,
   },
   timerBtn: {
     width: 40,
