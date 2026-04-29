@@ -1,0 +1,117 @@
+I want to prepare this app for launch today with a Free and Pro version.
+
+Do this in ONE update only. Do not make extra design changes. Do not rebuild unrelated features.
+
+1. PRO FEATURE LOCKING
+
+Free users can:
+
+* Log workouts manually
+* View workout history for the last 14 days only
+* Use basic workout tracking
+
+Free users cannot access:
+
+* AI workout suggestions
+* AI Coach
+* Coach tab
+* Body/photo analysis
+* Advanced coaching insights
+* Workout history older than 14 days
+
+2. HISTORY LIMIT
+
+For free users:
+
+* Only show workouts from the last 14 days
+* Do not delete older workout data
+* If older history exists, hide it and show:
+  “Upgrade to Pro to unlock full workout history.”
+
+3. PAYWALL SYSTEM
+
+Create one reusable paywall screen/modal.
+
+Show it whenever a free user taps a locked feature.
+
+Paywall text:
+
+Title:
+“Unlock LiftIQ Pro”
+
+Subtitle:
+“Train smarter with AI coaching, unlimited history, and advanced progress insights.”
+
+Benefits:
+
+* AI workout suggestions
+* AI coach recommendations
+* Body/photo analysis
+* Smart weight progression
+* Unlimited workout history
+* Advanced progress insights
+
+Pricing:
+
+* $4.99/month
+* $39/year
+
+Main button:
+“Upgrade to Pro”
+
+Secondary button:
+“Maybe later”
+
+4. PRO STATE FOR TESTING
+
+Add a simple local `isPro` flag for now.
+
+Default:
+isPro = false
+
+Store it locally using AsyncStorage or the app’s existing local storage.
+
+In Settings, add:
+“Unlock Pro Test Mode”
+
+When tapped, set isPro = true so I can test the Pro experience.
+
+Also add:
+“Reset to Free Mode”
+
+When tapped, set isPro = false so I can test the free experience.
+
+This is temporary until real Apple in-app purchases are added later.
+
+5. BACKEND/API PROTECTION
+
+If the user is not Pro, block all paid AI API calls before they happen.
+
+Do not allow free users to trigger paid AI requests.
+
+If a free user tries to access an AI endpoint, show the paywall instead.
+
+6. UI LOCKS
+
+Add a small “PRO” badge or lock icon on locked features.
+
+Locked features should look available but clearly premium.
+
+Do not remove the buttons. Tapping them should show the paywall.
+
+7. FINAL CHECK
+
+After making changes:
+
+* Confirm free users can still log workouts
+* Confirm free users only see 14 days of history
+* Confirm AI buttons open the paywall
+* Confirm Coach tab opens the paywall
+* Confirm Pro test mode unlocks everything
+* Confirm Reset to Free mode locks everything again
+* Confirm no paid AI request runs for free users
+
+Do not add theme customization yet.
+Do not add real payments yet.
+Do not change the app icon.
+Do not change unrelated UI.
