@@ -1,4 +1,5 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
+import express from "express";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -31,6 +32,19 @@ function rateLimited(ip: string): boolean {
   else ipHits.set(ip, hits);
   return hits.length > RATE_LIMIT_MAX;
 }
+
+// Middleware: check rate limit BEFORE body parsing so oversized bodies cannot
+// bypass the per-IP quota by crashing the parser before the handler runs.
+const ipRateLimit: RequestHandler = (req, res, next) => {
+  const ip = req.ip ?? "unknown";
+  if (rateLimited(ip)) {
+    res.status(429).json({ error: "rate_limited" });
+    return;
+  }
+  next();
+};
+
+const parseBody = express.json({ limit: "64kb" });
 
 const PRSchema = z.object({
   exerciseName: z.string().min(1).max(80),
@@ -153,12 +167,8 @@ Schema:
   "weeklyTip": string
 }`;
 
-router.post("/coach", async (req, res) => {
+router.post("/coach", ipRateLimit, parseBody, async (req, res) => {
   const ip = req.ip ?? "unknown";
-  if (rateLimited(ip)) {
-    res.status(429).json({ error: "rate_limited" });
-    return;
-  }
 
   const parsed = RequestSchema.safeParse(req.body);
   if (!parsed.success) {

@@ -1,4 +1,5 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
+import express from "express";
 import { z } from "zod";
 import OpenAI from "openai";
 
@@ -34,6 +35,21 @@ function rateLimited(ip: string): boolean {
   else ipHits.set(ip, hits);
   return hits.length > RATE_LIMIT_MAX;
 }
+
+// Middleware: check rate limit BEFORE body parsing so oversized bodies cannot
+// bypass the per-IP quota by crashing the parser before the handler runs.
+const ipRateLimit: RequestHandler = (req, res, next) => {
+  const ip = req.ip ?? "unknown";
+  if (rateLimited(ip)) {
+    res.status(429).json({ error: "rate_limited" });
+    return;
+  }
+  next();
+};
+
+// Body parser applied after rate limiting. The 8 MB window is intentionally
+// scoped here (not globally) so it only applies once the rate check passes.
+const parseBody = express.json({ limit: "8mb" });
 
 // ---------------------------------------------------------------------------
 // Pro / Free model
@@ -189,12 +205,8 @@ const USER_PROMPT = `Analyze these fitness progress photos. Give short, practica
 Comment on muscle development, symmetry, posture, and areas to improve.
 Keep it concise and motivating. No medical advice.`;
 
-router.post("/analyze-progress-photo", async (req, res) => {
+router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) => {
   const ip = req.ip ?? "unknown";
-  if (rateLimited(ip)) {
-    res.status(429).json({ error: "rate_limited" });
-    return;
-  }
 
   const parsed = RequestSchema.safeParse(req.body);
   if (!parsed.success) {
