@@ -15,7 +15,11 @@ import { ExerciseImage } from "@/components/ExerciseImage";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 import { describeFreshness } from "@/lib/recommendation";
-import { getLastPerformance, suggestNext } from "@/lib/progression";
+import {
+  getLastPerformance,
+  getPersonalBest,
+  suggestNext,
+} from "@/lib/progression";
 
 type Tab = "Primary" | "Secondary";
 
@@ -54,7 +58,8 @@ export default function ExerciseDetailScreen() {
   }
 
   const last = getLastPerformance(workouts, exercise.id);
-  const suggestion = suggestNext(last);
+  const pb = getPersonalBest(workouts, exercise.id, active);
+  const suggestion = suggestNext(last, pb);
   const freshness = describeFreshness(exercise.id, workouts);
 
   const muscles =

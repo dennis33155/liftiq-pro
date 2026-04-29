@@ -30,3 +30,13 @@ export function formatWeight(weight: number | null): string {
   if (weight === 0) return "BW";
   return weight.toString();
 }
+
+/**
+ * Display-ready weight label including unit. Bodyweight (0) renders as "BW"
+ * with no unit; null renders as "-"; otherwise "<weight> lb".
+ */
+export function formatWeightLabel(weight: number | null): string {
+  if (weight === null) return "-";
+  if (weight === 0) return "BW";
+  return weight.toString() + " lb";
+}

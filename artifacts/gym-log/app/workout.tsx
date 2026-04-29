@@ -23,9 +23,13 @@ import { SetRow } from "@/components/SetRow";
 import { WarmupSection } from "@/components/WarmupSection";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
-import { formatTimer } from "@/lib/format";
-import { getLastPerformance, suggestNext } from "@/lib/progression";
-import type { WorkoutExercise } from "@/lib/types";
+import { formatTimer, formatWeightLabel } from "@/lib/format";
+import {
+  getLastPerformance,
+  getPersonalBest,
+  suggestNext,
+} from "@/lib/progression";
+import type { Workout, WorkoutExercise } from "@/lib/types";
 
 export default function WorkoutScreen() {
   const colors = useColors();
@@ -216,6 +220,7 @@ export default function WorkoutScreen() {
             <ExerciseBlock
               key={we.id}
               we={we}
+              active={active}
               allExercises={allExercises}
               workouts={workouts}
               onUpdate={(setId, patch) => {
@@ -291,6 +296,7 @@ export default function WorkoutScreen() {
 
 function ExerciseBlock({
   we,
+  active,
   allExercises,
   workouts,
   onUpdate,
@@ -299,6 +305,7 @@ function ExerciseBlock({
   onRemove,
 }: {
   we: WorkoutExercise;
+  active: Workout;
   allExercises: ReturnType<typeof useWorkout>["allExercises"];
   workouts: ReturnType<typeof useWorkout>["workouts"];
   onUpdate: (
@@ -315,7 +322,16 @@ function ExerciseBlock({
     () => getLastPerformance(workouts, we.exerciseId),
     [workouts, we.exerciseId],
   );
-  const suggestion = useMemo(() => suggestNext(last), [last]);
+  const pb = useMemo(
+    () => getPersonalBest(workouts, we.exerciseId, active),
+    [workouts, we.exerciseId, active],
+  );
+  const suggestion = useMemo(() => suggestNext(last, pb), [last, pb]);
+  const repTarget =
+    suggestion.repsLow === suggestion.repsHigh
+      ? String(suggestion.repsLow)
+      : suggestion.repsLow + " to " + suggestion.repsHigh;
+  const accentColor = suggestion.isPRAttempt ? "#f97316" : colors.primary;
 
   if (!exercise) return null;
 
@@ -368,7 +384,7 @@ function ExerciseBlock({
         </Pressable>
       </View>
 
-      <View style={{ marginBottom: 12 }}>
+      <View style={{ marginBottom: 10 }}>
         <MuscleChips
           primary={exercise.primaryMuscles}
           secondary={exercise.secondaryMuscles}
@@ -376,20 +392,61 @@ function ExerciseBlock({
         />
       </View>
 
+      <View style={styles.metaRow}>
+        {pb ? (
+          <View style={styles.metaItem}>
+            <Text
+              style={[styles.metaLabel, { color: colors.mutedForeground }]}
+            >
+              PB
+            </Text>
+            <Text style={[styles.metaValue, { color: colors.foreground }]}>
+              {formatWeightLabel(pb.weight)} x {pb.reps}
+            </Text>
+          </View>
+        ) : null}
+        {last ? (
+          <View style={styles.metaItem}>
+            <Text
+              style={[styles.metaLabel, { color: colors.mutedForeground }]}
+            >
+              LAST
+            </Text>
+            <Text style={[styles.metaValue, { color: colors.foreground }]}>
+              {formatWeightLabel(last.weight)} x {last.reps}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
       <View
         style={[
-          styles.suggestionPill,
-          { backgroundColor: colors.accent, borderRadius: 8 },
+          styles.suggestionCard,
+          {
+            backgroundColor: colors.accent,
+            borderRadius: 10,
+            borderLeftColor: accentColor,
+          },
         ]}
       >
-        <Feather name="target" size={12} color={colors.primary} />
-        <Text style={[styles.suggestionText, { color: colors.foreground }]}>
+        {suggestion.goal ? (
+          <Text style={[styles.goalText, { color: accentColor }]}>
+            {suggestion.isPRAttempt ? "PR ATTEMPT \u00B7 " : "GOAL TODAY \u00B7 "}
+            <Text style={{ color: colors.foreground }}>{suggestion.goal}</Text>
+          </Text>
+        ) : null}
+        <Text style={[styles.tryText, { color: colors.foreground }]}>
           Try{" "}
-          <Text style={{ fontFamily: "Inter_700Bold" }}>
-            {suggestion.weight}
+          <Text style={{ fontFamily: "Inter_700Bold", color: accentColor }}>
+            {formatWeightLabel(suggestion.weight)}
           </Text>{" "}
-          lb x{" "}
-          <Text style={{ fontFamily: "Inter_700Bold" }}>{suggestion.reps}</Text>
+          x{" "}
+          <Text style={{ fontFamily: "Inter_700Bold", color: accentColor }}>
+            {repTarget}
+          </Text>
+        </Text>
+        <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+          {suggestion.hint}
         </Text>
       </View>
 
@@ -516,18 +573,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  suggestionPill: {
-    alignSelf: "flex-start",
+  metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 12,
+    gap: 18,
+    marginBottom: 10,
+    flexWrap: "wrap",
   },
-  suggestionText: {
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  metaLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  metaValue: {
     fontFamily: "Inter_500Medium",
-    fontSize: 12,
+    fontSize: 13,
+    fontVariant: ["tabular-nums"],
+  },
+  suggestionCard: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    gap: 4,
+  },
+  goalText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    letterSpacing: 0.6,
+  },
+  tryText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+  },
+  hintText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    fontStyle: "italic",
   },
   tableHeader: {
     flexDirection: "row",
