@@ -17,6 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { HeaderRight } from "@/components/HeaderRight";
 import { WorkoutProvider } from "@/context/WorkoutContext";
+import { AiUsageProvider } from "@/lib/aiUsage";
 import { CustomScheduleProvider } from "@/lib/customSchedule";
 import { ExerciseImagesProvider } from "@/lib/exerciseImages";
 
@@ -125,8 +126,10 @@ export default function RootLayout() {
               <WorkoutProvider>
                 <CustomScheduleProvider>
                   <ExerciseImagesProvider>
-                    <StatusBar style="light" />
-                    <RootLayoutNav />
+                    <AiUsageProvider>
+                      <StatusBar style="light" />
+                      <RootLayoutNav />
+                    </AiUsageProvider>
                   </ExerciseImagesProvider>
                 </CustomScheduleProvider>
               </WorkoutProvider>

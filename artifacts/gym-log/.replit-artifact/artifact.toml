@@ -1,6 +1,6 @@
 kind = "mobile"
 previewPath = "/"
-title = "Gym Log"
+title = "LiftIQ"
 version = "1.0.0"
 id = "artifacts/gym-log"
 router = "expo-domain"

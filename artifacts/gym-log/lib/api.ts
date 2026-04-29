@@ -164,13 +164,48 @@ export async function requestCoachRecommendations(
 export type AnalyzeProgressPhotoRequest = {
   imageDataUri: string;
   photoDate: number;
+  tier?: "free" | "premium";
+};
+
+export type AnalyzeProgressPhotoUsage = {
+  tier: "free" | "premium";
+  used: number;
+  limit: number;
+  remaining: number;
+  resetAt: number;
 };
 
 export type AnalyzeProgressPhotoResponse = {
   analysis: string;
   analyzedAt: number;
   model: string;
+  usage?: AnalyzeProgressPhotoUsage;
 };
+
+export class WeeklyAiLimitError extends Error {
+  readonly code = "weekly_limit_reached" as const;
+  readonly tier: "free" | "premium";
+  readonly limit: number;
+  readonly used: number;
+  readonly resetAt: number;
+  constructor(opts: {
+    tier: "free" | "premium";
+    limit: number;
+    used: number;
+    resetAt: number;
+    message?: string;
+  }) {
+    super(
+      opts.message ??
+        "You've reached your weekly AI limit. Upgrade to continue.",
+    );
+    this.name = "WeeklyAiLimitError";
+    this.tier = opts.tier;
+    this.limit = opts.limit;
+    this.used = opts.used;
+    this.resetAt = opts.resetAt;
+  }
+}
 
 export async function requestPhotoAnalysis(
   input: AnalyzeProgressPhotoRequest,
@@ -187,6 +222,30 @@ export async function requestPhotoAnalysis(
       body = await res.json();
     } catch {
       // ignore
+    }
+    if (
+      res.status === 429 &&
+      body &&
+      typeof body === "object" &&
+      (body as { error?: unknown }).error === "weekly_limit_reached"
+    ) {
+      const b = body as {
+        tier?: "free" | "premium";
+        limit?: number;
+        used?: number;
+        resetAt?: number;
+        message?: string;
+      };
+      throw new WeeklyAiLimitError({
+        tier: b.tier ?? "free",
+        limit: typeof b.limit === "number" ? b.limit : 0,
+        used: typeof b.used === "number" ? b.used : 0,
+        resetAt:
+          typeof b.resetAt === "number"
+            ? b.resetAt
+            : Date.now() + 7 * 24 * 60 * 60 * 1000,
+        message: b.message,
+      });
     }
     const detail =
       body && typeof body === "object" && "error" in body

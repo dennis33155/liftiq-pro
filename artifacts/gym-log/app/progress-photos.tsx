@@ -21,7 +21,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
-import { requestPhotoAnalysis } from "@/lib/api";
+import { useAiUsage, AI_LIMIT_MESSAGE } from "@/lib/aiUsage";
+import { requestPhotoAnalysis, WeeklyAiLimitError } from "@/lib/api";
 import {
   addProgressPhoto,
   deleteProgressPhoto,
@@ -264,14 +265,35 @@ export default function ProgressPhotosScreen() {
     });
   }, []);
 
+  const ai = useAiUsage();
+
+  const showLimitReached = useCallback(() => {
+    Alert.alert("Weekly AI limit", AI_LIMIT_MESSAGE, [
+      { text: "Not now", style: "cancel" },
+      {
+        text: "Upgrade",
+        onPress: () => router.push("/(tabs)/settings"),
+      },
+    ]);
+  }, []);
+
   const runAnalysisFor = useCallback(
     async (photo: ProgressPhoto): Promise<ProgressPhoto[] | null> => {
+      // Client-side gate: stop before we even build the data URI or hit the
+      // network when the user is already at their weekly limit.
+      if (!ai.canUseNow()) {
+        showLimitReached();
+        return null;
+      }
       try {
         const dataUri = await getPhotoDataUri(photo);
         const result = await requestPhotoAnalysis({
           imageDataUri: dataUri,
           photoDate: photo.date,
+          tier: ai.tier,
         });
+        // Only count successful calls — failed analyses do not consume budget.
+        await ai.incrementUsage();
         const next = await setProgressPhotoAnalysis(photo.id, {
           text: result.analysis,
           analyzedAt: result.analyzedAt,
@@ -279,12 +301,16 @@ export default function ProgressPhotosScreen() {
         });
         return next;
       } catch (err) {
+        if (err instanceof WeeklyAiLimitError) {
+          showLimitReached();
+          return null;
+        }
         const msg = err instanceof Error ? err.message : "Unknown error";
         Alert.alert("Could not analyze photo", msg);
         return null;
       }
     },
-    [],
+    [ai, showLimitReached],
   );
 
   const handleAnalyzeSelected = useCallback(async () => {
@@ -477,6 +503,44 @@ export default function ProgressPhotosScreen() {
             Photos are analyzed only when you tap Analyze Photos.
           </Text>
         </View>
+
+        <Pressable
+          onPress={() => router.push("/(tabs)/settings")}
+          style={({ pressed }) => [
+            styles.usageBadge,
+            {
+              borderColor:
+                ai.remaining === 0 ? colors.destructive : colors.border,
+              backgroundColor: colors.card,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Feather
+            name={ai.remaining === 0 ? "alert-circle" : "zap"}
+            size={14}
+            color={
+              ai.remaining === 0 ? colors.destructive : colors.primary
+            }
+          />
+          <Text
+            style={[styles.usageBadgeText, { color: colors.foreground }]}
+          >
+            AI {ai.tier === "premium" ? "Premium" : "Free"}
+            {"  \u00B7  "}
+            {ai.used}/{ai.limit} this week
+          </Text>
+          {ai.tier === "free" ? (
+            <Text
+              style={[
+                styles.usageBadgeUpgrade,
+                { color: colors.primary },
+              ]}
+            >
+              Upgrade
+            </Text>
+          ) : null}
+        </Pressable>
 
         {loaded ? (
           <View
@@ -742,6 +806,25 @@ const styles = StyleSheet.create({
   btnRow: {
     flexDirection: "row",
     gap: 10,
+  },
+  usageBadge: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  usageBadgeText: {
+    flex: 1,
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+  },
+  usageBadgeUpgrade: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
   },
   disclaimer: {
     flexDirection: "row",

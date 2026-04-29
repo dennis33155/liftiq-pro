@@ -16,6 +16,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LiveDateTime } from "@/components/LiveDateTime";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
+import {
+  AI_WEEKLY_LIMITS,
+  useAiUsage,
+  type Tier,
+} from "@/lib/aiUsage";
 import { useCustomSchedule } from "@/lib/customSchedule";
 
 export default function SettingsScreen() {
@@ -28,6 +33,62 @@ export default function SettingsScreen() {
     clearAllData,
   } = useWorkout();
   const { reset: resetSchedule } = useCustomSchedule();
+  const ai = useAiUsage();
+
+  const handleUpgrade = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Upgrade to Premium",
+      "Premium raises your weekly AI photo analysis limit from " +
+        AI_WEEKLY_LIMITS.free +
+        " to " +
+        AI_WEEKLY_LIMITS.premium +
+        " per week. Payments are not yet wired up — for now you can activate Premium directly to test the higher limit.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Activate Premium",
+          onPress: async () => {
+            await ai.setTier("premium");
+            Haptics.notificationAsync(
+              Haptics.NotificationFeedbackType.Success,
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDowngrade = () => {
+    Alert.alert(
+      "Switch to Free?",
+      "You will be limited to " +
+        AI_WEEKLY_LIMITS.free +
+        " AI photo analyses per week.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Switch to Free",
+          style: "destructive",
+          onPress: async () => {
+            await ai.setTier("free");
+          },
+        },
+      ],
+    );
+  };
+
+  const formatResetDate = (ts: number): string => {
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatTier = (t: Tier): string =>
+    t === "premium" ? "Premium" : "Free";
 
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? Math.max(insets.top, 67) : insets.top;
@@ -204,6 +265,143 @@ export default function SettingsScreen() {
           ))
         )}
       </View>
+
+      <Text style={[styles.section, { color: colors.mutedForeground }]}>
+        AI PLAN
+      </Text>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius,
+          },
+        ]}
+      >
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.foreground }]}>
+              Current plan
+            </Text>
+            <Text
+              style={[styles.rowSub, { color: colors.mutedForeground }]}
+            >
+              {ai.tier === "premium"
+                ? AI_WEEKLY_LIMITS.premium +
+                  " photo analyses per week"
+                : AI_WEEKLY_LIMITS.free + " photo analyses per week"}
+            </Text>
+          </View>
+          <Text
+            style={[
+              styles.tierBadge,
+              {
+                color:
+                  ai.tier === "premium"
+                    ? colors.primary
+                    : colors.mutedForeground,
+                borderColor:
+                  ai.tier === "premium"
+                    ? colors.primary
+                    : colors.border,
+              },
+            ]}
+          >
+            {formatTier(ai.tier).toUpperCase()}
+          </Text>
+        </View>
+        <Divider />
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.foreground }]}>
+              This week
+            </Text>
+            <Text
+              style={[styles.rowSub, { color: colors.mutedForeground }]}
+            >
+              Resets {formatResetDate(ai.weekResetAt)}
+            </Text>
+          </View>
+          <Text
+            style={[
+              styles.rowValue,
+              {
+                color:
+                  ai.remaining === 0
+                    ? colors.destructive
+                    : colors.foreground,
+              },
+            ]}
+          >
+            {ai.used}/{ai.limit}
+          </Text>
+        </View>
+      </View>
+
+      {ai.tier === "free" ? (
+        <Pressable
+          onPress={handleUpgrade}
+          style={({ pressed }) => [
+            styles.scheduleBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.primary,
+              borderRadius: colors.radius,
+              opacity: pressed ? 0.7 : 1,
+              marginTop: 8,
+            },
+          ]}
+        >
+          <Feather name="zap" size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.scheduleLabel, { color: colors.primary }]}>
+              Upgrade to Premium
+            </Text>
+            <Text
+              style={[styles.scheduleSub, { color: colors.mutedForeground }]}
+            >
+              {AI_WEEKLY_LIMITS.premium} AI photo analyses per week.
+            </Text>
+          </View>
+          <Feather
+            name="chevron-right"
+            size={18}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={handleDowngrade}
+          style={({ pressed }) => [
+            styles.scheduleBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+              opacity: pressed ? 0.7 : 1,
+              marginTop: 8,
+            },
+          ]}
+        >
+          <Feather name="user" size={18} color={colors.foreground} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.scheduleLabel, { color: colors.foreground }]}>
+              Switch to Free
+            </Text>
+            <Text
+              style={[styles.scheduleSub, { color: colors.mutedForeground }]}
+            >
+              Drop back to {AI_WEEKLY_LIMITS.free} per week.
+            </Text>
+          </View>
+          <Feather
+            name="chevron-right"
+            size={18}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+      )}
 
       <Text style={[styles.section, { color: colors.mutedForeground }]}>
         SCHEDULE
@@ -393,5 +591,15 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     textAlign: "center",
+  },
+  tierBadge: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    letterSpacing: 1.2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    overflow: "hidden",
   },
 });
