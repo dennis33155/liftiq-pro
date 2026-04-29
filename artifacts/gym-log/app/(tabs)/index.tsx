@@ -23,7 +23,7 @@ import type { Category } from "@/lib/types";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { active, startWorkout, workouts } = useWorkout();
+  const { active, startWorkout, startSuggestedWorkout, workouts } = useWorkout();
 
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? Math.max(insets.top, 67) : insets.top;
@@ -35,6 +35,15 @@ export default function HomeScreen() {
       return;
     }
     startWorkout(category);
+    router.push("/workout");
+  };
+
+  const handleSuggest = (category: Category) => {
+    if (active) {
+      router.push("/workout");
+      return;
+    }
+    startSuggestedWorkout(category, 5);
     router.push("/workout");
   };
 
@@ -156,6 +165,9 @@ export default function HomeScreen() {
       <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
         START A WORKOUT
       </Text>
+      <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
+        Tap to start blank, or "Suggest" to auto-build a session.
+      </Text>
 
       <View style={styles.categories}>
         {CATEGORIES.map((cat) => (
@@ -163,6 +175,7 @@ export default function HomeScreen() {
             key={cat}
             category={cat}
             onPress={() => handleStart(cat)}
+            onSuggest={active ? undefined : () => handleSuggest(cat)}
           />
         ))}
       </View>
@@ -290,7 +303,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 1.5,
     paddingHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 6,
+  },
+  sectionHint: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    paddingHorizontal: 20,
+    marginBottom: 14,
   },
   categories: {
     paddingHorizontal: 20,

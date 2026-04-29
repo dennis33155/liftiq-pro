@@ -18,6 +18,7 @@ import {
   saveCustomExercises,
   saveWorkouts,
 } from "@/lib/storage";
+import { buildSuggestedWorkout } from "@/lib/recommendation";
 import { SEED_EXERCISES } from "@/lib/seedExercises";
 import type {
   Category,
@@ -37,6 +38,8 @@ type Ctx = {
   endWorkout: () => void;
   cancelWorkout: () => void;
   addExerciseToActive: (exerciseId: string) => void;
+  populateSuggested: (count?: number) => void;
+  startSuggestedWorkout: (category: Category, count?: number) => Workout;
   removeExerciseFromActive: (workoutExerciseId: string) => void;
   addSetToExercise: (workoutExerciseId: string) => void;
   removeSet: (workoutExerciseId: string, setId: string) => void;
@@ -118,6 +121,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const addExerciseToActive = useCallback((exerciseId: string) => {
     setActive((curr) => {
       if (!curr) return curr;
+      if (curr.exercises.some((e) => e.exerciseId === exerciseId)) return curr;
       const we: WorkoutExercise = {
         id: makeId(),
         exerciseId,
@@ -128,6 +132,56 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       return { ...curr, exercises: [...curr.exercises, we] };
     });
   }, []);
+
+  const populateSuggested = useCallback(
+    (count: number = 5) => {
+      setActive((curr) => {
+        if (!curr) return curr;
+        const suggestions = buildSuggestedWorkout(
+          [...SEED_EXERCISES, ...customExercises],
+          curr.category,
+          workouts,
+          count,
+        );
+        const existingIds = new Set(curr.exercises.map((e) => e.exerciseId));
+        const additions: WorkoutExercise[] = suggestions
+          .filter((s) => !existingIds.has(s.id))
+          .map((s) => ({
+            id: makeId(),
+            exerciseId: s.id,
+            sets: [{ id: makeId(), weight: null, reps: null, done: false }],
+          }));
+        return { ...curr, exercises: [...curr.exercises, ...additions] };
+      });
+    },
+    [customExercises, workouts],
+  );
+
+  const startSuggestedWorkout = useCallback(
+    (category: Category, count: number = 5): Workout => {
+      const suggestions = buildSuggestedWorkout(
+        [...SEED_EXERCISES, ...customExercises],
+        category,
+        workouts,
+        count,
+      );
+      const exercises: WorkoutExercise[] = suggestions.map((s) => ({
+        id: makeId(),
+        exerciseId: s.id,
+        sets: [{ id: makeId(), weight: null, reps: null, done: false }],
+      }));
+      const newWorkout: Workout = {
+        id: makeId(),
+        category,
+        startedAt: Date.now(),
+        endedAt: null,
+        exercises,
+      };
+      setActive(newWorkout);
+      return newWorkout;
+    },
+    [customExercises, workouts],
+  );
 
   const removeExerciseFromActive = useCallback(
     (workoutExerciseId: string) => {
@@ -250,6 +304,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       endWorkout,
       cancelWorkout,
       addExerciseToActive,
+      populateSuggested,
+      startSuggestedWorkout,
       removeExerciseFromActive,
       addSetToExercise,
       removeSet,
@@ -269,6 +325,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       endWorkout,
       cancelWorkout,
       addExerciseToActive,
+      populateSuggested,
+      startSuggestedWorkout,
       removeExerciseFromActive,
       addSetToExercise,
       removeSet,

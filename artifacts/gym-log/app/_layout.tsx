@@ -61,6 +61,13 @@ function RootLayoutNav() {
           title: "Workout",
         }}
       />
+      <Stack.Screen
+        name="exercise-detail/[id]"
+        options={{
+          presentation: "modal",
+          title: "Exercise",
+        }}
+      />
     </Stack>
   );
 }

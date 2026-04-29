@@ -37,6 +37,7 @@ export default function WorkoutScreen() {
     updateSet,
     removeSet,
     removeExerciseFromActive,
+    populateSuggested,
   } = useWorkout();
 
   const [elapsed, setElapsed] = useState(0);
@@ -156,7 +157,18 @@ export default function WorkoutScreen() {
             <EmptyState
               icon="plus-circle"
               title="No exercises yet"
-              description="Add an exercise to start logging sets."
+              description="Add one yourself, or let us plan a session for you."
+            />
+            <PrimaryButton
+              label="Suggest Exercises"
+              icon={
+                <Feather name="zap" size={18} color={colors.primaryForeground} />
+              }
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                populateSuggested(5);
+              }}
+              style={{ marginTop: 12 }}
             />
           </View>
         ) : (
@@ -271,18 +283,33 @@ function ExerciseBlock({
       ]}
     >
       <View style={styles.blockHeader}>
-        <ExerciseImage size={44} />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.exName, { color: colors.foreground }]}>
-            {exercise.name}
-          </Text>
-          <Text
-            style={[styles.exHint, { color: colors.mutedForeground }]}
-            numberOfLines={2}
-          >
-            {suggestion.hint}
-          </Text>
-        </View>
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync();
+            router.push({
+              pathname: "/exercise-detail/[id]",
+              params: { id: exercise.id },
+            });
+          }}
+          style={({ pressed }) => [
+            styles.exHeaderTap,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <ExerciseImage size={44} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.exName, { color: colors.foreground }]}>
+              {exercise.name}
+            </Text>
+            <Text
+              style={[styles.exHint, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+            >
+              {(exercise.primaryMuscles?.[0] ?? exercise.category) +
+                "  \u00B7  Tap for muscles"}
+            </Text>
+          </View>
+        </Pressable>
         <Pressable
           onPress={onRemove}
           hitSlop={8}
@@ -398,6 +425,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     marginBottom: 12,
+  },
+  exHeaderTap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   exName: {
     fontFamily: "Inter_700Bold",

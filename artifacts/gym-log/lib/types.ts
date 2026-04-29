@@ -21,6 +21,12 @@ export type Exercise = {
   category: Category;
   isCustom?: boolean;
   imageUrl?: string;
+  primaryMuscles?: string[];
+  secondaryMuscles?: string[];
+  equipment?: string;
+  preparation?: string;
+  execution?: string;
+  tip?: string;
 };
 
 export type WorkoutSet = {

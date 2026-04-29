@@ -20,9 +20,10 @@ const ICONS: Record<Category, IconName> = {
 type Props = {
   category: Category;
   onPress: () => void;
+  onSuggest?: () => void;
 };
 
-export function CategoryCard({ category, onPress }: Props) {
+export function CategoryCard({ category, onPress, onSuggest }: Props) {
   const colors = useColors();
 
   const handlePress = () => {
@@ -30,33 +31,66 @@ export function CategoryCard({ category, onPress }: Props) {
     onPress();
   };
 
+  const handleSuggest = () => {
+    if (!onSuggest) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onSuggest();
+  };
+
   return (
-    <Pressable
-      onPress={handlePress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.card,
         {
           backgroundColor: colors.card,
           borderColor: colors.border,
           borderRadius: colors.radius,
-          opacity: pressed ? 0.85 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
         },
       ]}
     >
-      <View
-        style={[
-          styles.iconWrap,
-          { backgroundColor: colors.accent, borderRadius: colors.radius },
+      <Pressable
+        onPress={handlePress}
+        style={({ pressed }) => [
+          styles.main,
+          { opacity: pressed ? 0.7 : 1 },
         ]}
       >
-        <Feather name={ICONS[category]} size={26} color={colors.primary} />
-      </View>
-      <Text style={[styles.label, { color: colors.foreground }]}>
-        {category}
-      </Text>
+        <View
+          style={[
+            styles.iconWrap,
+            { backgroundColor: colors.accent, borderRadius: colors.radius },
+          ]}
+        >
+          <Feather name={ICONS[category]} size={26} color={colors.primary} />
+        </View>
+        <Text style={[styles.label, { color: colors.foreground }]}>
+          {category}
+        </Text>
+      </Pressable>
+      {onSuggest ? (
+        <Pressable
+          onPress={handleSuggest}
+          hitSlop={6}
+          style={({ pressed }) => [
+            styles.suggestBtn,
+            {
+              backgroundColor: colors.accent,
+              borderColor: colors.border,
+              borderRadius: 999,
+              opacity: pressed ? 0.6 : 1,
+            },
+          ]}
+        >
+          <Feather name="zap" size={14} color={colors.primary} />
+          <Text
+            style={[styles.suggestLabel, { color: colors.foreground }]}
+          >
+            Suggest
+          </Text>
+        </Pressable>
+      ) : null}
       <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-    </Pressable>
+    </View>
   );
 }
 
@@ -64,9 +98,15 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 18,
-    paddingHorizontal: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     borderWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+  },
+  main: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 16,
   },
   iconWrap: {
@@ -79,5 +119,18 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: "Inter_600SemiBold",
     fontSize: 18,
+  },
+  suggestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  suggestLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    letterSpacing: 0.4,
   },
 });

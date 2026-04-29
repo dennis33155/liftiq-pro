@@ -5,6 +5,7 @@ import React, { useMemo, useState } from "react";
 import {
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,13 +16,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ExerciseImage } from "@/components/ExerciseImage";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
+import {
+  describeFreshness,
+  recommendExercises,
+} from "@/lib/recommendation";
 import { CATEGORIES } from "@/lib/types";
 import type { Category, Exercise } from "@/lib/types";
 
 export default function ExercisePicker() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { active, allExercises, addExerciseToActive } = useWorkout();
+  const { active, allExercises, workouts, addExerciseToActive } = useWorkout();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Category | "All">(
     active?.category ?? "All",
@@ -35,10 +40,23 @@ export default function ExercisePicker() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [allExercises, query, filter]);
 
+  const recommended = useMemo(() => {
+    if (query.trim() !== "") return [];
+    return recommendExercises(allExercises, filter, workouts, 4);
+  }, [allExercises, filter, workouts, query]);
+
   const handleAdd = (exercise: Exercise) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addExerciseToActive(exercise.id);
     router.back();
+  };
+
+  const handleInfo = (exercise: Exercise) => {
+    Haptics.selectionAsync();
+    router.push({
+      pathname: "/exercise-detail/[id]",
+      params: { id: exercise.id },
+    });
   };
 
   return (
@@ -108,6 +126,101 @@ export default function ExercisePicker() {
           paddingHorizontal: 16,
         }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        ListHeaderComponent={
+          recommended.length === 0 ? null : (
+            <View style={{ marginBottom: 16 }}>
+              <View style={styles.sectionHead}>
+                <Feather name="zap" size={14} color={colors.primary} />
+                <Text
+                  style={[
+                    styles.sectionLabel,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  RECOMMENDED FOR YOU
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10 }}
+              >
+                {recommended.map((rec) => (
+                  <Pressable
+                    key={rec.id}
+                    onPress={() => handleInfo(rec)}
+                    style={({ pressed }) => [
+                      styles.recCard,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                        borderRadius: colors.radius,
+                        opacity: pressed ? 0.85 : 1,
+                      },
+                    ]}
+                  >
+                    <ExerciseImage size={36} />
+                    <Text
+                      style={[styles.recName, { color: colors.foreground }]}
+                      numberOfLines={2}
+                    >
+                      {rec.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.recHint,
+                        { color: colors.mutedForeground },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {describeFreshness(rec.id, workouts)}
+                    </Text>
+                    <Pressable
+                      onPress={() => handleAdd(rec)}
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.recAdd,
+                        {
+                          backgroundColor: colors.primary,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <Feather
+                        name="plus"
+                        size={14}
+                        color={colors.primaryForeground}
+                      />
+                      <Text
+                        style={[
+                          styles.recAddLabel,
+                          { color: colors.primaryForeground },
+                        ]}
+                      >
+                        Add
+                      </Text>
+                    </Pressable>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <View style={styles.sectionHead}>
+                <Feather
+                  name="list"
+                  size={14}
+                  color={colors.mutedForeground}
+                />
+                <Text
+                  style={[
+                    styles.sectionLabel,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  ALL EXERCISES
+                </Text>
+              </View>
+            </View>
+          )
+        }
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <Feather
@@ -166,18 +279,34 @@ export default function ExercisePicker() {
               </Text>
               <Text
                 style={[styles.cat, { color: colors.mutedForeground }]}
+                numberOfLines={1}
               >
-                {item.category}
+                {item.primaryMuscles && item.primaryMuscles.length > 0
+                  ? item.primaryMuscles[0]
+                  : item.category}
                 {item.isCustom ? " \u00B7 custom" : ""}
               </Text>
             </View>
+            <Pressable
+              onPress={() => handleInfo(item)}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.infoBtn,
+                {
+                  backgroundColor: colors.accent,
+                  opacity: pressed ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Feather name="info" size={16} color={colors.foreground} />
+            </Pressable>
             <View
               style={[
                 styles.plus,
-                { backgroundColor: colors.accent, borderRadius: 999 },
+                { backgroundColor: colors.primary, borderRadius: 999 },
               ]}
             >
-              <Feather name="plus" size={16} color={colors.primary} />
+              <Feather name="plus" size={16} color={colors.primaryForeground} />
             </View>
           </Pressable>
         )}
@@ -217,10 +346,50 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     fontSize: 13,
   },
+  sectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 18,
+    marginBottom: 10,
+  },
+  sectionLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    letterSpacing: 1.2,
+  },
+  recCard: {
+    width: 160,
+    padding: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  recName: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    minHeight: 32,
+  },
+  recHint: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+  },
+  recAdd: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginTop: 4,
+  },
+  recAddLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     padding: 12,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -232,6 +401,13 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 2,
+  },
+  infoBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
   },
   plus: {
     width: 32,

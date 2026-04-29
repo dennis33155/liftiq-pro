@@ -27,7 +27,10 @@ export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { workouts, allExercises, deleteWorkout } = useWorkout();
 
-  const workout = workouts.find((w) => w.id === id);
+  const workoutId = typeof id === "string" ? id : null;
+  const workout = workoutId
+    ? workouts.find((w) => w.id === workoutId)
+    : undefined;
 
   if (!workout) {
     return (
@@ -114,12 +117,45 @@ export default function WorkoutDetailScreen() {
               { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
             ]}
           >
-            <View style={styles.exHeader}>
+            <Pressable
+              onPress={() => {
+                if (!ex) return;
+                Haptics.selectionAsync();
+                router.push({
+                  pathname: "/exercise-detail/[id]",
+                  params: { id: ex.id },
+                });
+              }}
+              style={({ pressed }) => [
+                styles.exHeader,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
               <ExerciseImage size={36} />
-              <Text style={[styles.exName, { color: colors.foreground }]}>
-                {ex?.name ?? "Exercise"}
-              </Text>
-            </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.exName, { color: colors.foreground }]}>
+                  {ex?.name ?? "Exercise"}
+                </Text>
+                {ex?.primaryMuscles && ex.primaryMuscles.length > 0 ? (
+                  <Text
+                    style={[
+                      styles.exSub,
+                      { color: colors.mutedForeground },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {ex.primaryMuscles[0]}
+                  </Text>
+                ) : null}
+              </View>
+              {ex ? (
+                <Feather
+                  name="info"
+                  size={16}
+                  color={colors.mutedForeground}
+                />
+              ) : null}
+            </Pressable>
             {completed.length === 0 ? (
               <Text style={[styles.noSets, { color: colors.mutedForeground }]}>
                 No completed sets.
@@ -234,6 +270,11 @@ const styles = StyleSheet.create({
   exName: {
     fontFamily: "Inter_700Bold",
     fontSize: 16,
+  },
+  exSub: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    marginTop: 2,
   },
   noSets: {
     fontFamily: "Inter_400Regular",
