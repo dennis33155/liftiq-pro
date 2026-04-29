@@ -2,7 +2,7 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import type { Category, Exercise } from "@/lib/types";
@@ -11,6 +11,10 @@ type Props = {
   size?: number;
   exercise?: Pick<Exercise, "category" | "equipment" | "imageUrl"> | null;
   large?: boolean;
+  /** When `large`, render the image fitted (contain) instead of cropped. */
+  contain?: boolean;
+  /** When `large` and showing a placeholder, render the "Image coming soon" caption. */
+  showPlaceholderCaption?: boolean;
 };
 
 const CATEGORY_GRADIENT: Record<Category, [string, string]> = {
@@ -66,7 +70,13 @@ function IconForKind({ kind, size }: { kind: IconKind; size: number }) {
   }
 }
 
-export function ExerciseImage({ size = 44, exercise, large = false }: Props) {
+export function ExerciseImage({
+  size = 44,
+  exercise,
+  large = false,
+  contain = false,
+  showPlaceholderCaption = false,
+}: Props) {
   const colors = useColors();
   const [imgFailed, setImgFailed] = React.useState(false);
   const category = exercise?.category;
@@ -85,7 +95,12 @@ export function ExerciseImage({ size = 44, exercise, large = false }: Props) {
         onError={() => setImgFailed(true)}
         style={
           large
-            ? { width: "100%", height: 240, borderRadius: 16 }
+            ? {
+                width: "100%",
+                height: 240,
+                borderRadius: 16,
+                backgroundColor: "#000",
+              }
             : {
                 width: size,
                 height: size,
@@ -93,7 +108,7 @@ export function ExerciseImage({ size = 44, exercise, large = false }: Props) {
                 backgroundColor: colors.accent,
               }
         }
-        contentFit="cover"
+        contentFit={large && contain ? "contain" : "cover"}
         cachePolicy="memory-disk"
       />
     );
@@ -115,6 +130,9 @@ export function ExerciseImage({ size = 44, exercise, large = false }: Props) {
           style={StyleSheet.absoluteFill}
         />
         <IconForKind kind={pickIcon(exercise?.equipment)} size={iconSize} />
+        {showPlaceholderCaption ? (
+          <Text style={styles.placeholderCaption}>Image coming soon</Text>
+        ) : null}
       </View>
     );
   }
@@ -160,5 +178,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
     marginBottom: 16,
+  },
+  placeholderCaption: {
+    marginTop: 14,
+    color: "#fafafa",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    letterSpacing: 0.4,
+    opacity: 0.92,
   },
 });

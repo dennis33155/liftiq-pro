@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -34,6 +35,7 @@ export default function ExerciseDetailScreen() {
   const exercise = exerciseId
     ? allExercises.find((e) => e.id === exerciseId)
     : undefined;
+  const [imageOpen, setImageOpen] = useState(false);
 
   if (!exercise) {
     return (
@@ -84,7 +86,28 @@ export default function ExerciseDetailScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <ExerciseImage exercise={exercise} large />
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync();
+            setImageOpen(true);
+          }}
+          accessibilityLabel={`Open ${exercise.name} visual guide`}
+          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+        >
+          <ExerciseImage
+            exercise={exercise}
+            large
+            showPlaceholderCaption
+          />
+        </Pressable>
+        <View style={styles.visualGuideRow}>
+          <Feather name="image" size={12} color={colors.mutedForeground} />
+          <Text
+            style={[styles.visualGuideText, { color: colors.mutedForeground }]}
+          >
+            Visual guide {"\u00B7"} tap to enlarge
+          </Text>
+        </View>
         <View style={styles.titleBlock}>
           <Text style={[styles.title, { color: colors.foreground }]}>
             {exercise.name}
@@ -253,6 +276,50 @@ export default function ExerciseDetailScreen() {
         </View>
       </ScrollView>
 
+      <Modal
+        visible={imageOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImageOpen(false)}
+      >
+        <View style={styles.viewerBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setImageOpen(false)}
+            accessibilityLabel="Close visual guide"
+          />
+          <View style={styles.viewerImageWrap} pointerEvents="box-none">
+            <ExerciseImage
+              exercise={exercise}
+              large
+              contain
+              showPlaceholderCaption
+            />
+            <Text style={styles.viewerCaption}>{exercise.name}</Text>
+          </View>
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.viewerTopBar,
+              { paddingTop: insets.top + 8 },
+            ]}
+          >
+            <Pressable
+              onPress={() => setImageOpen(false)}
+              hitSlop={10}
+              accessibilityLabel="Back"
+              style={({ pressed }) => [
+                styles.viewerNavPill,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Feather name="chevron-left" size={18} color="#fafafa" />
+              <Text style={styles.viewerNavText}>Back</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {active ? (
         <View
           style={[
@@ -309,6 +376,67 @@ function Section({ title, body }: { title: string; body: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  visualGuideRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: -6,
+    marginBottom: 14,
+  },
+  visualGuideText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.96)",
+  },
+  viewerImageWrap: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 88,
+    paddingBottom: 32,
+    alignItems: "stretch",
+    justifyContent: "center",
+    gap: 12,
+  },
+  viewerCaption: {
+    color: "#fafafa",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    textAlign: "center",
+    opacity: 0.85,
+  },
+  viewerTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  viewerNavPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(20,20,22,0.78)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  viewerNavText: {
+    color: "#fafafa",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    letterSpacing: 0.2,
+  },
   titleBlock: {
     marginBottom: 18,
   },
