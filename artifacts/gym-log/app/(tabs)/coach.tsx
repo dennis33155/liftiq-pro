@@ -35,6 +35,8 @@ import {
   topPersonalRecords,
   type PersonalRecord,
 } from "@/lib/personalRecords";
+import { loadBodyMetrics } from "@/lib/bodyMetrics";
+import { loadProgressPhotos } from "@/lib/progressPhotos";
 
 const STORAGE_KEY = "gym-log:coach-recs:v1";
 
@@ -147,11 +149,23 @@ export default function CoachScreen() {
         primaryMuscles: e.primaryMuscles,
       }));
 
+      const [bodyMetricsAll, photos] = await Promise.all([
+        loadBodyMetrics().catch(() => []),
+        loadProgressPhotos().catch(() => []),
+      ]);
+      const bodyMetrics = bodyMetricsAll.slice(0, 8).map((m) => ({
+        date: new Date(m.date).toISOString().slice(0, 10),
+        weightLb: m.weightLb,
+        bodyFatPct: m.bodyFatPct,
+      }));
+
       const result: CoachResponse = await requestCoachRecommendations({
         notes: notes.trim() || undefined,
         personalRecords,
         recentWorkouts,
         availableExercises,
+        bodyMetrics: bodyMetrics.length > 0 ? bodyMetrics : undefined,
+        progressPhotosCount: photos.length,
       });
 
       const next: StoredCoach = {

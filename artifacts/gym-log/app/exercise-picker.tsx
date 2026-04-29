@@ -160,7 +160,7 @@ export default function ExercisePicker() {
                       },
                     ]}
                   >
-                    <ExerciseImage size={36} />
+                    <ExerciseImage size={36} exercise={rec} />
                     <Text
                       style={[styles.recName, { color: colors.foreground }]}
                       numberOfLines={2}
@@ -273,7 +273,7 @@ export default function ExercisePicker() {
               },
             ]}
           >
-            <ExerciseImage size={40} />
+            <ExerciseImage size={40} exercise={item} />
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={[styles.name, { color: colors.foreground }]}>
                 {item.name}

@@ -141,49 +141,47 @@ export default function WorkoutScreen() {
           },
         ]}
       >
-        <View style={styles.headerLeft}>
-          <Pressable
-            onPress={handleCancel}
-            hitSlop={10}
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-          >
-            <Feather name="x" size={24} color={colors.foreground} />
-          </Pressable>
-          <Pressable
-            onPress={() => router.replace("/")}
-            hitSlop={10}
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-          >
-            <Feather name="home" size={20} color={colors.mutedForeground} />
-          </Pressable>
-        </View>
-
-        <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+        <View style={styles.headerTopRow}>
+          <View style={styles.headerLeft}>
+            <Pressable
+              onPress={handleCancel}
+              hitSlop={10}
+              style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+            >
+              <Feather name="x" size={22} color={colors.foreground} />
+            </Pressable>
+            <Pressable
+              onPress={() => router.replace("/")}
+              hitSlop={10}
+              style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+            >
+              <Feather name="home" size={18} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+          <Text style={[styles.headerCategory, { color: colors.foreground }]}>
             {active.category}
           </Text>
-          <Text style={[styles.headerTimer, { color: colors.mutedForeground }]}>
-            {formatTimer(elapsed)} {"\u00B7"} {completedSets}/{totalSets} sets
-          </Text>
-          <Text style={[styles.headerClock, { color: colors.mutedForeground }]}>
-            Started {startedClockText} {"\u00B7"} now {clockText} {"\u00B7"}{" "}
-            {dateText}
-          </Text>
+          <Pressable
+            onPress={() => startRest(restSeconds)}
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.timerBtn,
+              {
+                backgroundColor: colors.accent,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Feather name="clock" size={16} color={colors.primary} />
+          </Pressable>
         </View>
 
-        <Pressable
-          onPress={() => startRest(restSeconds)}
-          hitSlop={10}
-          style={({ pressed }) => [
-            styles.timerBtn,
-            {
-              backgroundColor: colors.accent,
-              opacity: pressed ? 0.7 : 1,
-            },
-          ]}
-        >
-          <Feather name="clock" size={18} color={colors.primary} />
-        </Pressable>
+        <Text style={styles.urgentTimer}>{formatTimer(elapsed)}</Text>
+
+        <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
+          {completedSets}/{totalSets} sets {"\u00B7"} started {startedClockText}{" "}
+          {"\u00B7"} {dateText} {"\u00B7"} {clockText}
+        </Text>
       </View>
 
       <KeyboardAwareScrollView
@@ -346,7 +344,7 @@ function ExerciseBlock({
             { opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <ExerciseImage size={44} />
+          <ExerciseImage size={44} exercise={exercise} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.exName, { color: colors.foreground }]}>
               {exercise.name}
@@ -446,42 +444,48 @@ function ExerciseBlock({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+    justifyContent: "space-between",
     gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginBottom: 4,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
   },
-  headerCenter: {
-    flex: 1,
-    alignItems: "center",
-  },
-  headerTitle: {
+  headerCategory: {
     fontFamily: "Inter_700Bold",
-    fontSize: 18,
+    fontSize: 14,
+    letterSpacing: 0.4,
   },
-  headerTimer: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 12,
+  urgentTimer: {
+    color: "#f97316",
+    fontFamily: "Inter_700Bold",
+    fontSize: 56,
+    lineHeight: 60,
     fontVariant: ["tabular-nums"],
-    marginTop: 2,
+    textAlign: "center",
+    letterSpacing: -1.5,
+    marginVertical: 4,
   },
-  headerClock: {
-    fontFamily: "Inter_400Regular",
+  headerSub: {
+    fontFamily: "Inter_500Medium",
     fontSize: 11,
     fontVariant: ["tabular-nums"],
-    marginTop: 1,
-    opacity: 0.8,
+    textAlign: "center",
+    letterSpacing: 0.3,
+    marginTop: 2,
   },
   timerBtn: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",

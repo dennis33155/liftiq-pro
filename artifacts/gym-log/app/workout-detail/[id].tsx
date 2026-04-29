@@ -144,7 +144,7 @@ export default function WorkoutDetailScreen() {
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <ExerciseImage size={36} />
+              <ExerciseImage size={36} exercise={ex} />
               <View style={{ flex: 1, gap: 6 }}>
                 <Text style={[styles.exName, { color: colors.foreground }]}>
                   {ex?.name ?? "Exercise"}

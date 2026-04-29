@@ -89,11 +89,19 @@ export type CoachRecentWorkout = {
   exerciseNames: string[];
 };
 
+export type CoachBodyMetric = {
+  date: string;
+  weightLb: number | null;
+  bodyFatPct: number | null;
+};
+
 export type CoachRequest = {
   notes?: string;
   personalRecords: CoachPersonalRecord[];
   recentWorkouts: CoachRecentWorkout[];
   availableExercises: CoachAvailableExercise[];
+  bodyMetrics?: CoachBodyMetric[];
+  progressPhotosCount?: number;
 };
 
 export type CoachFocusExercise = {

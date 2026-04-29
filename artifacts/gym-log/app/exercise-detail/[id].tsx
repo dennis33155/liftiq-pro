@@ -79,19 +79,17 @@ export default function ExerciseDetailScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerRow}>
-          <ExerciseImage size={64} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: colors.foreground }]}>
-              {exercise.name}
-            </Text>
-            <Text
-              style={[styles.subtitle, { color: colors.mutedForeground }]}
-            >
-              {exercise.category}
-              {exercise.equipment ? "  \u00B7  " + exercise.equipment : ""}
-            </Text>
-          </View>
+        <ExerciseImage exercise={exercise} large />
+        <View style={styles.titleBlock}>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            {exercise.name}
+          </Text>
+          <Text
+            style={[styles.subtitle, { color: colors.mutedForeground }]}
+          >
+            {exercise.category}
+            {exercise.equipment ? "  \u00B7  " + exercise.equipment : ""}
+          </Text>
         </View>
 
         <View
@@ -306,10 +304,7 @@ function Section({ title, body }: { title: string; body: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
+  titleBlock: {
     marginBottom: 18,
   },
   title: {

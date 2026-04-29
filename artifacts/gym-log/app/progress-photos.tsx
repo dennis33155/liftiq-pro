@@ -19,12 +19,58 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useColors } from "@/hooks/useColors";
+import { useWorkout } from "@/context/WorkoutContext";
 import {
   addProgressPhoto,
   deleteProgressPhoto,
   loadProgressPhotos,
   type ProgressPhoto,
 } from "@/lib/progressPhotos";
+import type { Workout } from "@/lib/types";
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function buildCoachComment(workouts: Workout[], photoCount: number): string {
+  if (photoCount === 0) {
+    return "Snap your first photo. The mirror lies, photos don't.";
+  }
+  const now = Date.now();
+  const completed = workouts.filter(
+    (w) => w.endedAt !== null && now - (w.endedAt ?? 0) <= 14 * ONE_DAY_MS,
+  );
+  if (completed.length === 0) {
+    return "Stay consistent. The work is showing.";
+  }
+
+  const last7d = completed.filter(
+    (w) => now - (w.endedAt ?? 0) <= 7 * ONE_DAY_MS,
+  );
+  const backCount7 = last7d.filter((w) => w.category === "Back").length;
+  const has14 = (cat: string) =>
+    completed.some((w) => w.category === cat);
+
+  let chestSets14 = 0;
+  for (const w of completed) {
+    if (w.category !== "Chest") continue;
+    for (const ex of w.exercises) {
+      chestSets14 += ex.sets.filter((s) => s.done).length;
+    }
+  }
+
+  if (backCount7 >= 3) {
+    return "Back width is improving. Keep the volume.";
+  }
+  if (chestSets14 >= 30) {
+    return "Chest pressing volume is high. Mirror it with rows.";
+  }
+  if (has14("Shoulders") && has14("Arms")) {
+    return "Shoulders and arms are starting to stand out.";
+  }
+  if (has14("Legs")) {
+    return "Lower body work is showing. Don't skip the next leg day.";
+  }
+  return "Stay consistent. The work is showing.";
+}
 
 function formatDateLong(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, {
@@ -71,6 +117,7 @@ const HORIZONTAL_PADDING = 16;
 export default function ProgressPhotosScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { workouts } = useWorkout();
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -181,6 +228,10 @@ export default function ProgressPhotosScreen() {
   );
 
   const groups = useMemo(() => groupByDay(photos), [photos]);
+  const coachComment = useMemo(
+    () => buildCoachComment(workouts, photos.length),
+    [workouts, photos.length],
+  );
 
   const screenWidth = Dimensions.get("window").width;
   const cellSize =
@@ -239,6 +290,28 @@ export default function ProgressPhotosScreen() {
             style={{ flex: 1 }}
           />
         </View>
+
+        {loaded ? (
+          <View
+            style={[
+              styles.coachCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View style={styles.coachHeader}>
+              <Feather name="message-circle" size={14} color={colors.primary} />
+              <Text style={[styles.coachLabel, { color: colors.primary }]}>
+                COACH COMMENT
+              </Text>
+            </View>
+            <Text style={[styles.coachBody, { color: colors.foreground }]}>
+              {coachComment}
+            </Text>
+          </View>
+        ) : null}
 
         {!loaded ? (
           <Text style={[styles.sub, { color: colors.mutedForeground }]}>
@@ -360,6 +433,27 @@ const styles = StyleSheet.create({
   btnRow: {
     flexDirection: "row",
     gap: 10,
+  },
+  coachCard: {
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  coachHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  coachLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    letterSpacing: 1.2,
+  },
+  coachBody: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    lineHeight: 20,
   },
   dayCard: {
     padding: 12,

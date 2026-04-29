@@ -56,11 +56,19 @@ const AvailableExerciseSchema = z.object({
   primaryMuscles: z.array(z.string().max(40)).max(8).optional(),
 });
 
+const BodyMetricSchema = z.object({
+  date: z.string().max(20),
+  weightLb: z.number().nonnegative().nullable(),
+  bodyFatPct: z.number().nonnegative().max(80).nullable(),
+});
+
 const RequestSchema = z.object({
   notes: z.string().max(400).optional(),
   personalRecords: z.array(PRSchema).max(60),
   recentWorkouts: z.array(RecentWorkoutSchema).max(15),
   availableExercises: z.array(AvailableExerciseSchema).min(1).max(200),
+  bodyMetrics: z.array(BodyMetricSchema).max(20).optional(),
+  progressPhotosCount: z.number().int().nonnegative().max(10000).optional(),
 });
 
 const RecommendationsSchema = z.object({
@@ -106,6 +114,8 @@ an athlete's training log. You will be given:
   most recent weight x reps, total sessions).
 - A list of recent workouts (date + category + exercises performed).
 - Optional athlete notes (energy, soreness, focus areas).
+- Recent body metrics (body weight, body fat %) when logged.
+- Count of progress photos on file (visual log activity).
 - A list of every exercise the athlete has access to in their app library.
 
 Produce a concise, ACTIONABLE coaching summary. Rules:
@@ -154,8 +164,14 @@ router.post("/coach", async (req, res) => {
     return;
   }
 
-  const { notes, personalRecords, recentWorkouts, availableExercises } =
-    parsed.data;
+  const {
+    notes,
+    personalRecords,
+    recentWorkouts,
+    availableExercises,
+    bodyMetrics,
+    progressPhotosCount,
+  } = parsed.data;
 
   const baseURL = process.env["AI_INTEGRATIONS_ANTHROPIC_BASE_URL"];
   const apiKey = process.env["AI_INTEGRATIONS_ANTHROPIC_API_KEY"];
@@ -169,6 +185,23 @@ router.post("/coach", async (req, res) => {
 
   const userText = [
     notes ? "Athlete notes: " + notes : null,
+    "",
+    bodyMetrics && bodyMetrics.length > 0
+      ? "Body metrics (newest first):\n" +
+        bodyMetrics
+          .map(
+            (m) =>
+              "- " +
+              m.date +
+              ": " +
+              (m.weightLb != null ? m.weightLb + " lb" : "weight ?") +
+              (m.bodyFatPct != null ? " / " + m.bodyFatPct + "% BF" : ""),
+          )
+          .join("\n")
+      : "Body metrics: (none logged)",
+    progressPhotosCount != null
+      ? "Progress photos on file: " + progressPhotosCount
+      : null,
     "",
     "Personal records (best 1RM first):",
     personalRecords.length > 0
