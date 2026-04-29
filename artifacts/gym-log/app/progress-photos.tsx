@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image as ExpoImage } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -604,6 +605,7 @@ export default function ProgressPhotosScreen() {
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => setViewing(null)}
+            accessibilityLabel="Close photo viewer"
           />
           {viewing ? (
             <>
@@ -612,6 +614,46 @@ export default function ProgressPhotosScreen() {
                 style={styles.viewerImage}
                 contentFit="contain"
               />
+              <View
+                pointerEvents="box-none"
+                style={[
+                  styles.viewerTopBar,
+                  { paddingTop: insets.top + 8 },
+                ]}
+              >
+                <Pressable
+                  onPress={() => setViewing(null)}
+                  hitSlop={10}
+                  accessibilityLabel="Back to progress photos"
+                  style={({ pressed }) => [
+                    styles.viewerNavPill,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Feather name="chevron-left" size={18} color="#fafafa" />
+                  <Text style={styles.viewerNavText}>Back</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setViewing(null);
+                    try {
+                      router.dismissAll();
+                    } catch {
+                      // ignore: nothing to dismiss
+                    }
+                    router.replace("/");
+                  }}
+                  hitSlop={10}
+                  accessibilityLabel="Go to home"
+                  style={({ pressed }) => [
+                    styles.viewerNavPill,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Feather name="home" size={16} color="#fafafa" />
+                  <Text style={styles.viewerNavText}>Home</Text>
+                </Pressable>
+              </View>
               <ScrollView
                 style={[
                   styles.viewerSheet,
@@ -799,6 +841,34 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "55%",
     marginTop: "8%",
+  },
+  viewerTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  viewerNavPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(20,20,22,0.78)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  viewerNavText: {
+    color: "#fafafa",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
   viewerSheet: {
     position: "absolute",
