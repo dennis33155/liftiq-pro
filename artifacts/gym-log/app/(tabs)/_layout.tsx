@@ -20,9 +20,9 @@ function NativeTabLayout() {
         <Icon sf={{ default: "clock", selected: "clock.fill" }} />
         <Label>History</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="analyze">
-        <Icon sf={{ default: "camera.viewfinder", selected: "camera.viewfinder" }} />
-        <Label>Analyze</Label>
+      <NativeTabs.Trigger name="coach">
+        <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
+        <Label>Coach</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
@@ -96,14 +96,14 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="analyze"
+        name="coach"
         options={{
-          title: "Analyze",
+          title: "Coach",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="camera.viewfinder" tintColor={color} size={24} />
+              <SymbolView name="sparkles" tintColor={color} size={24} />
             ) : (
-              <Feather name="camera" size={22} color={color} />
+              <Feather name="cpu" size={22} color={color} />
             ),
         }}
       />

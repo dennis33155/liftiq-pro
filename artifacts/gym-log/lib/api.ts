@@ -8,36 +8,6 @@ export function getApiBaseUrl(): string {
   return "https://" + domain;
 }
 
-export type BodyAnalysisAngle = "front" | "side" | "back";
-
-export type BodyAnalysisDevelopmentArea = {
-  muscle: string;
-  note: string;
-};
-
-export type BodyAnalysisRecommendedExercise = {
-  name: string;
-  muscle: string;
-  reason: string;
-};
-
-export type BodyAnalysisResult = {
-  overallSummary: string;
-  estimatedBodyFatRange: string;
-  estimatedSymmetryScore: number;
-  strengths: string[];
-  developmentAreas: BodyAnalysisDevelopmentArea[];
-  recommendedExercises: BodyAnalysisRecommendedExercise[];
-  postureNotes: string;
-  nutritionTip: string;
-};
-
-export type BodyAnalysisResponse = {
-  analysis: BodyAnalysisResult;
-  angle: BodyAnalysisAngle;
-  createdAt: number;
-};
-
 export type AiSuggestedExercise = {
   exerciseId: string;
   sets: number;
@@ -95,15 +65,73 @@ export async function requestWorkoutSuggestion(
   return (await res.json()) as WorkoutSuggestionResponse;
 }
 
-export async function requestBodyAnalysis(input: {
-  images: {
-    imageBase64: string;
-    mimeType: "image/jpeg" | "image/png" | "image/webp";
-  }[];
-  angle: BodyAnalysisAngle;
+export type CoachPersonalRecord = {
+  exerciseName: string;
+  category: string;
+  estimated1RM: number;
+  bestWeight: number;
+  bestReps: number;
+  lastWeight: number | null;
+  lastReps: number | null;
+  lastDate: string | null;
+  totalSessions: number;
+};
+
+export type CoachAvailableExercise = {
+  name: string;
+  category: string;
+  primaryMuscles?: string[];
+};
+
+export type CoachRecentWorkout = {
+  date: string;
+  category: string;
+  exerciseNames: string[];
+};
+
+export type CoachRequest = {
   notes?: string;
-}): Promise<BodyAnalysisResponse> {
-  const url = getApiBaseUrl() + "/api/body-analysis";
+  personalRecords: CoachPersonalRecord[];
+  recentWorkouts: CoachRecentWorkout[];
+  availableExercises: CoachAvailableExercise[];
+};
+
+export type CoachFocusExercise = {
+  exerciseName: string;
+  reason: string;
+};
+
+export type CoachProgressionItem = {
+  exerciseName: string;
+  suggestedSets: number;
+  suggestedReps: number;
+  suggestedWeight: number;
+  note: string;
+};
+
+export type CoachNeglectedArea = {
+  area: string;
+  recommendedExercise: string;
+  reason: string;
+};
+
+export type CoachRecommendations = {
+  headline: string;
+  focusExercises: CoachFocusExercise[];
+  progressionPlan: CoachProgressionItem[];
+  neglectedAreas: CoachNeglectedArea[];
+  weeklyTip: string;
+};
+
+export type CoachResponse = {
+  recommendations: CoachRecommendations;
+  createdAt: number;
+};
+
+export async function requestCoachRecommendations(
+  input: CoachRequest,
+): Promise<CoachResponse> {
+  const url = getApiBaseUrl() + "/api/coach";
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -120,7 +148,7 @@ export async function requestBodyAnalysis(input: {
       body && typeof body === "object" && "error" in body
         ? String((body as { error: unknown }).error)
         : "request_failed";
-    throw new Error("Body analysis failed: " + detail);
+    throw new Error("Coach request failed: " + detail);
   }
-  return (await res.json()) as BodyAnalysisResponse;
+  return (await res.json()) as CoachResponse;
 }

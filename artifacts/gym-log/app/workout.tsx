@@ -114,13 +114,22 @@ export default function WorkoutScreen() {
           },
         ]}
       >
-        <Pressable
-          onPress={handleCancel}
-          hitSlop={10}
-          style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-        >
-          <Feather name="x" size={24} color={colors.foreground} />
-        </Pressable>
+        <View style={styles.headerLeft}>
+          <Pressable
+            onPress={handleCancel}
+            hitSlop={10}
+            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+          >
+            <Feather name="x" size={24} color={colors.foreground} />
+          </Pressable>
+          <Pressable
+            onPress={() => router.replace("/")}
+            hitSlop={10}
+            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+          >
+            <Feather name="home" size={20} color={colors.mutedForeground} />
+          </Pressable>
+        </View>
 
         <View style={styles.headerCenter}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>
@@ -403,6 +412,11 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
   headerCenter: {
     flex: 1,

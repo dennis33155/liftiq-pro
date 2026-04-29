@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
-import bodyAnalysisRouter from "./body-analysis";
 import workoutSuggestionRouter from "./workout-suggestion";
+import coachRouter from "./coach";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
-router.use(bodyAnalysisRouter);
 router.use(workoutSuggestionRouter);
+router.use(coachRouter);
 
 export default router;

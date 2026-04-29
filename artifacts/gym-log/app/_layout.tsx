@@ -15,6 +15,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { HeaderHomeButton } from "@/components/HeaderHomeButton";
 import { WorkoutProvider } from "@/context/WorkoutContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -46,6 +47,7 @@ function RootLayoutNav() {
         options={{
           presentation: "modal",
           title: "Add Exercise",
+          headerRight: () => <HeaderHomeButton />,
         }}
       />
       <Stack.Screen
@@ -53,12 +55,14 @@ function RootLayoutNav() {
         options={{
           presentation: "modal",
           title: "New Custom Exercise",
+          headerRight: () => <HeaderHomeButton />,
         }}
       />
       <Stack.Screen
         name="workout-detail/[id]"
         options={{
           title: "Workout",
+          headerRight: () => <HeaderHomeButton />,
         }}
       />
       <Stack.Screen
@@ -66,6 +70,7 @@ function RootLayoutNav() {
         options={{
           presentation: "modal",
           title: "Exercise",
+          headerRight: () => <HeaderHomeButton />,
         }}
       />
     </Stack>
