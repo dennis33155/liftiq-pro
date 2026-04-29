@@ -242,6 +242,18 @@ const server = http.createServer((req, res) => {
 // module is imported (e.g. by tests) the helpers below are still exported,
 // but the HTTP server stays dormant.
 if (require.main === module) {
+  // Loud warning when there is no allowlist: in that mode any well-formed
+  // X-Forwarded-Host is reflected into the landing page (still escaped, but
+  // the QR code / deep link can be steered to an attacker's Expo host). This
+  // is intended only for local dev; production deployments must set
+  // REPLIT_DOMAINS to a comma-separated list of trusted hostnames.
+  if (ALLOWED_HOSTS.size === 0) {
+    console.warn(
+      "[serve.js] WARNING: REPLIT_DOMAINS is not set. The landing page " +
+        "will accept any syntactically valid X-Forwarded-Host. Set " +
+        "REPLIT_DOMAINS to a comma-separated allowlist for production.",
+    );
+  }
   const port = parseInt(process.env.PORT || "3000", 10);
   server.listen(port, "0.0.0.0", () => {
     console.log(`Serving static Expo build on port ${port}`);
