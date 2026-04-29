@@ -46,31 +46,9 @@ const RequestSchema = z.object({
   photoDate: z.number().int().positive(),
 });
 
-const SYSTEM_PROMPT = `You are a supportive strength and physique coach reviewing a single progress photo for an athlete who logs their training in a personal app.
-
-YOU MUST FOCUS ON, AND ONLY ON:
-- Visible muscle development (e.g. shoulders look broader, lats showing more flare, calves filling out)
-- Symmetry and proportion between major muscle groups
-- Posture and standing alignment cues you can see in the frame
-- Apparent body composition direction in qualitative terms only (leaner, fuller, holding water)
-- A concrete training focus to address what is visible (e.g. "add lateral raises to widen shoulders")
-
-YOU MUST NEVER:
-- Give medical diagnoses or health advice of any kind
-- Estimate an exact body fat percentage, weight, BMI, or any precise number
-- Shame, mock, insult, or use negative language about body size or appearance
-- Make sexual, romantic, or attractiveness-based comments
-- Comment on age, gender, race, ethnicity, or any identity attribute
-- Try to identify the person, name them, or speculate about who they are
-- Recommend supplements, prescription drugs, restrictive diets, or anything outside training
-
-OUTPUT FORMAT:
-- 2 to 4 short sentences, plain text only.
-- No markdown, no bullets, no numbered lists, no headers.
-- Speak directly to the athlete in second person ("Your back...").
-- End with one concrete, training-focused suggestion.
-
-If the image is not a clear progress / physique photo (no person visible, only a face, blurry, or unrelated content), respond with exactly: "Could not analyze this photo. Try a clear, well-lit standing shot showing the muscle group you want feedback on."`;
+const USER_PROMPT = `Analyze these fitness progress photos. Give short, practical gym-focused feedback.
+Comment on muscle development, symmetry, posture, and areas to improve.
+Keep it concise and motivating. No medical advice.`;
 
 router.post("/analyze-progress-photo", async (req, res) => {
   const ip = req.ip ?? "unknown";
@@ -100,8 +78,7 @@ router.post("/analyze-progress-photo", async (req, res) => {
 
   const client = new OpenAI({ baseURL, apiKey });
 
-  const photoDateLabel = new Date(photoDate).toISOString().slice(0, 10);
-  const userPromptText = `Photo date: ${photoDateLabel}. Give brief fitness feedback as instructed.`;
+  void photoDate;
 
   try {
     const response = await client.responses.create({
@@ -109,13 +86,9 @@ router.post("/analyze-progress-photo", async (req, res) => {
       max_output_tokens: 400,
       input: [
         {
-          role: "system",
-          content: SYSTEM_PROMPT,
-        },
-        {
           role: "user",
           content: [
-            { type: "input_text", text: userPromptText },
+            { type: "input_text", text: USER_PROMPT },
             {
               type: "input_image",
               image_url: imageDataUri,
@@ -126,15 +99,30 @@ router.post("/analyze-progress-photo", async (req, res) => {
       ],
     });
 
-    const raw = (response.output_text ?? "").trim();
-    if (raw.length === 0) {
-      req.log.error({ response }, "OpenAI returned empty output_text");
-      res.status(502).json({ error: "ai_no_text" });
-      return;
+    let extracted = (response.output_text ?? "").trim();
+    if (extracted.length === 0) {
+      // Fallback: dig into output[0].content[0].text if output_text was empty.
+      const outputs = (response as { output?: unknown }).output;
+      if (Array.isArray(outputs) && outputs.length > 0) {
+        const first = outputs[0] as { content?: unknown } | undefined;
+        const content = first?.content;
+        if (Array.isArray(content) && content.length > 0) {
+          const block = content[0] as { text?: unknown } | undefined;
+          if (block && typeof block.text === "string") {
+            extracted = block.text.trim();
+          }
+        }
+      }
+    }
+
+    if (extracted.length === 0) {
+      req.log.warn({ response }, "OpenAI returned no text in either path");
+      extracted = "Could not analyze photo. Try again.";
     }
 
     // Hard cap so a runaway response can't bloat local storage.
-    const analysis = raw.length > 800 ? raw.slice(0, 800).trim() + "..." : raw;
+    const analysis =
+      extracted.length > 800 ? extracted.slice(0, 800).trim() + "..." : extracted;
 
     res.json({
       analysis,
