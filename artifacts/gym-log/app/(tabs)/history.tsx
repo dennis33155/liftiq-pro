@@ -1,7 +1,9 @@
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
+  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -24,7 +26,7 @@ import type { Workout } from "@/lib/types";
 export default function HistoryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { workouts, loaded } = useWorkout();
+  const { workouts, loaded, deleteWorkout } = useWorkout();
 
   const sorted = useMemo(
     () => [...workouts].sort((a, b) => b.startedAt - a.startedAt),
@@ -78,13 +80,21 @@ export default function HistoryScreen() {
         </View>
       }
       ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-      renderItem={({ item }) => <WorkoutRow workout={item} />}
+      renderItem={({ item }) => (
+        <WorkoutRow workout={item} onDelete={deleteWorkout} />
+      )}
       showsVerticalScrollIndicator={false}
     />
   );
 }
 
-function WorkoutRow({ workout }: { workout: Workout }) {
+function WorkoutRow({
+  workout,
+  onDelete,
+}: {
+  workout: Workout;
+  onDelete: (id: string) => void;
+}) {
   const colors = useColors();
   const volume = Math.round(workoutVolume(workout));
   const minutes = workoutDurationMinutes(workout);
@@ -93,40 +103,77 @@ function WorkoutRow({ workout }: { workout: Workout }) {
     0,
   );
 
+  const handleDelete = () => {
+    Haptics.selectionAsync();
+    Alert.alert(
+      "Delete workout?",
+      `${workout.category} ${"\u00B7"} ${formatRelative(workout.startedAt)}\nThis cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            Haptics.notificationAsync(
+              Haptics.NotificationFeedbackType.Warning,
+            );
+            onDelete(workout.id);
+          },
+        },
+      ],
+    );
+  };
+
   return (
-    <Pressable
-      onPress={() => router.push(`/workout-detail/${workout.id}`)}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.card,
         {
           backgroundColor: colors.card,
           borderColor: colors.border,
           borderRadius: colors.radius,
-          opacity: pressed ? 0.85 : 1,
-          transform: [{ scale: pressed ? 0.99 : 1 }],
         },
       ]}
     >
-      <View style={styles.cardTop}>
-        <Text style={[styles.cardCategory, { color: colors.foreground }]}>
-          {workout.category}
-        </Text>
-        <Text style={[styles.cardDate, { color: colors.mutedForeground }]}>
-          {formatRelative(workout.startedAt)}
-        </Text>
-      </View>
-      <View style={styles.metaRow}>
-        <Meta icon="layers" value={`${workout.exercises.length} ex`} />
-        <Meta icon="hash" value={`${totalSets} sets`} />
-        <Meta icon="trending-up" value={`${volume.toLocaleString()} lb`} />
-        {minutes > 0 ? (
-          <Meta icon="clock" value={`${minutes}m`} />
-        ) : null}
-      </View>
-      <View style={styles.chevWrap}>
-        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-      </View>
-    </Pressable>
+      <Pressable
+        onPress={() => router.push(`/workout-detail/${workout.id}`)}
+        style={({ pressed }) => [
+          styles.cardTouchable,
+          { opacity: pressed ? 0.85 : 1 },
+        ]}
+      >
+        <View style={styles.cardTop}>
+          <Text style={[styles.cardCategory, { color: colors.foreground }]}>
+            {workout.category}
+          </Text>
+          <Text style={[styles.cardDate, { color: colors.mutedForeground }]}>
+            {formatRelative(workout.startedAt)}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Meta icon="layers" value={`${workout.exercises.length} ex`} />
+          <Meta icon="hash" value={`${totalSets} sets`} />
+          <Meta icon="trending-up" value={`${volume.toLocaleString()} lb`} />
+          {minutes > 0 ? <Meta icon="clock" value={`${minutes}m`} /> : null}
+        </View>
+      </Pressable>
+
+      <Pressable
+        onPress={handleDelete}
+        hitSlop={10}
+        style={({ pressed }) => [
+          styles.deleteBtn,
+          {
+            backgroundColor: colors.destructive,
+            opacity: pressed ? 0.7 : 1,
+          },
+        ]}
+        accessibilityLabel="Delete workout"
+        accessibilityRole="button"
+      >
+        <Feather name="trash-2" size={14} color={colors.primaryForeground} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -166,9 +213,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   card: {
-    padding: 16,
     borderWidth: StyleSheet.hairlineWidth,
     position: "relative",
+    overflow: "hidden",
+  },
+  cardTouchable: {
+    padding: 16,
+    paddingRight: 56,
   },
   cardTop: {
     flexDirection: "row",
@@ -198,10 +249,14 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 12,
   },
-  chevWrap: {
+  deleteBtn: {
     position: "absolute",
-    right: 12,
-    top: "50%",
-    marginTop: -9,
+    top: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
