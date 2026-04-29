@@ -6,6 +6,7 @@ const KEYS = {
   workouts: "gymlog.workouts.v1",
   custom: "gymlog.customExercises.v1",
   active: "gymlog.activeWorkout.v1",
+  prSeed: "gymlog.prSeed.v1",
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -47,11 +48,24 @@ export async function saveActiveWorkout(workout: Workout | null): Promise<void> 
   await writeJson(KEYS.active, workout);
 }
 
+export async function loadPRSeedDone(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.prSeed);
+    return raw === "1";
+  } catch {
+    return false;
+  }
+}
+export async function markPRSeedDone(): Promise<void> {
+  await AsyncStorage.setItem(KEYS.prSeed, "1");
+}
+
 export async function clearAll(): Promise<void> {
   await Promise.all([
     AsyncStorage.removeItem(KEYS.workouts),
     AsyncStorage.removeItem(KEYS.custom),
     AsyncStorage.removeItem(KEYS.active),
+    AsyncStorage.removeItem(KEYS.prSeed),
   ]);
 }
 

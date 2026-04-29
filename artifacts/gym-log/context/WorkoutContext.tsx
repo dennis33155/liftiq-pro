@@ -12,12 +12,15 @@ import {
   clearAll as storageClearAll,
   loadActiveWorkout,
   loadCustomExercises,
+  loadPRSeedDone,
   loadWorkouts,
   makeId,
+  markPRSeedDone,
   saveActiveWorkout,
   saveCustomExercises,
   saveWorkouts,
 } from "@/lib/storage";
+import { buildPRSeedWorkouts } from "@/lib/initialPRSeed";
 import { requestWorkoutSuggestion, type AiSuggestedExercise } from "@/lib/api";
 import { buildSuggestedWorkout } from "@/lib/recommendation";
 import {
@@ -74,12 +77,24 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const [w, c, a] = await Promise.all([
+      const [w, c, a, prSeedDone] = await Promise.all([
         loadWorkouts(),
         loadCustomExercises(),
         loadActiveWorkout(),
+        loadPRSeedDone(),
       ]);
-      setWorkouts(w);
+
+      let initialWorkouts = w;
+      if (!prSeedDone && w.length === 0) {
+        const seeded = buildPRSeedWorkouts();
+        initialWorkouts = seeded;
+        await saveWorkouts(seeded);
+        await markPRSeedDone();
+      } else if (!prSeedDone) {
+        await markPRSeedDone();
+      }
+
+      setWorkouts(initialWorkouts);
       setCustomExercises(c);
       setActive(a);
       setLoaded(true);
