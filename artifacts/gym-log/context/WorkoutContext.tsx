@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -22,6 +23,11 @@ import {
 } from "@/lib/storage";
 import { buildPRSeedWorkouts } from "@/lib/initialPRSeed";
 import { requestWorkoutSuggestion, type AiSuggestedExercise } from "@/lib/api";
+import {
+  checkPRBeat,
+  snapshotExercisePR,
+  type PRBeat,
+} from "@/lib/prDetection";
 import { buildSuggestedWorkout } from "@/lib/recommendation";
 import {
   FINISHER_EXERCISE_IDS,
@@ -36,6 +42,11 @@ import type {
   WorkoutExercise,
   WorkoutSet,
 } from "@/lib/types";
+
+export type PendingPR = {
+  beat: PRBeat;
+  exerciseName: string;
+};
 
 type Ctx = {
   loaded: boolean;
@@ -65,6 +76,8 @@ type Ctx = {
   deleteCustomExercise: (id: string) => void;
   deleteWorkout: (id: string) => void;
   clearAllData: () => Promise<void>;
+  pendingPR: PendingPR | null;
+  clearPendingPR: () => void;
 };
 
 const WorkoutCtx = createContext<Ctx | null>(null);
@@ -74,6 +87,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
   const [active, setActive] = useState<Workout | null>(null);
+  const [pendingPR, setPendingPR] = useState<PendingPR | null>(null);
+  const clearPendingPR = useCallback(() => setPendingPR(null), []);
 
   useEffect(() => {
     (async () => {
@@ -185,6 +200,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         endedAt: null,
         exercises,
       };
+      setPendingPR(null);
       setActive(newWorkout);
       return newWorkout;
     },
@@ -192,6 +208,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   );
 
   const endWorkout = useCallback(() => {
+    setPendingPR(null);
     setActive((curr) => {
       if (!curr) return null;
       const finished: Workout = { ...curr, endedAt: Date.now() };
@@ -201,6 +218,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const cancelWorkout = useCallback(() => {
+    setPendingPR(null);
     setActive(null);
   }, []);
 
@@ -328,6 +346,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         endedAt: null,
         exercises: [...warmup, ...aiBlocks, ...finisher],
       };
+      setPendingPR(null);
       setActive(newWorkout);
       return { workout: newWorkout, rationale: result.rationale };
     },
@@ -362,6 +381,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         endedAt: null,
         exercises: [...warmup, ...mains, ...finisher],
       };
+      setPendingPR(null);
       setActive(newWorkout);
       return newWorkout;
     },
@@ -455,6 +475,42 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  // Detect newly-completed sets that beat the current PR by diffing the
+  // previous active workout against the latest one. Runs purely off
+  // committed state, so it is StrictMode-safe and never fires inside a
+  // state-updater body.
+  const prevActiveRef = useRef<Workout | null>(null);
+  useEffect(() => {
+    const prev = prevActiveRef.current;
+    prevActiveRef.current = active;
+
+    // Only consider transitions within the same active workout. Starting,
+    // ending, or cancelling a workout never produces a celebration.
+    if (!active || !prev || prev.id !== active.id) return;
+
+    for (const we of active.exercises) {
+      const prevWe = prev.exercises.find((e) => e.id === we.id);
+      if (!prevWe) continue;
+      for (const s of we.sets) {
+        if (!s.done) continue;
+        const prevSet = prevWe.sets.find((ps) => ps.id === s.id);
+        if (prevSet?.done) continue; // already done before this commit
+        // Newly completed set — check against PRs using the prior state so
+        // this set's contribution is excluded from the baseline.
+        const snap = snapshotExercisePR(workouts, prev, we.exerciseId, s.id);
+        const beat = checkPRBeat(snap, s.weight, s.reps);
+        if (beat) {
+          const ex = allExercises.find((e) => e.id === we.exerciseId);
+          const exerciseName = ex?.name ?? "Exercise";
+          setPendingPR((existing) =>
+            existing ? existing : { beat, exerciseName },
+          );
+          return; // surface at most one celebration per commit
+        }
+      }
+    }
+  }, [active, workouts, allExercises]);
+
   const addCustomExercise = useCallback(
     (name: string, category: Category): Exercise => {
       const ex: Exercise = {
@@ -482,6 +538,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     setWorkouts([]);
     setCustomExercises([]);
     setActive(null);
+    setPendingPR(null);
   }, []);
 
   const value = useMemo<Ctx>(
@@ -506,6 +563,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       deleteCustomExercise,
       deleteWorkout,
       clearAllData,
+      pendingPR,
+      clearPendingPR,
     }),
     [
       loaded,
@@ -528,6 +587,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       deleteCustomExercise,
       deleteWorkout,
       clearAllData,
+      pendingPR,
+      clearPendingPR,
     ],
   );
 

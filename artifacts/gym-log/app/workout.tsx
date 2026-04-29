@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
 import { ExerciseImage } from "@/components/ExerciseImage";
 import { MuscleChips } from "@/components/MuscleChips";
+import { PRCelebrationModal } from "@/components/PRCelebrationModal";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { RestTimer } from "@/components/RestTimer";
 import { SetRow } from "@/components/SetRow";
@@ -39,6 +40,8 @@ export default function WorkoutScreen() {
     removeSet,
     removeExerciseFromActive,
     populateSuggested,
+    pendingPR,
+    clearPendingPR,
   } = useWorkout();
 
   const [elapsed, setElapsed] = useState(0);
@@ -262,6 +265,13 @@ export default function WorkoutScreen() {
         visible={restVisible}
         initialSeconds={restSeconds}
         onClose={() => setRestVisible(false)}
+      />
+
+      <PRCelebrationModal
+        visible={pendingPR !== null}
+        beat={pendingPR?.beat ?? null}
+        exerciseName={pendingPR?.exerciseName ?? ""}
+        onDismiss={clearPendingPR}
       />
     </View>
   );

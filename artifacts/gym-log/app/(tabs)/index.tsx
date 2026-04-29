@@ -22,6 +22,7 @@ import { useWorkout } from "@/context/WorkoutContext";
 import { formatRelative } from "@/lib/format";
 import { workoutVolume } from "@/lib/progression";
 import { WEEKLY_SCHEDULE, getTodaySlot } from "@/lib/schedule";
+import { computeStreak } from "@/lib/streak";
 import { CATEGORIES } from "@/lib/types";
 import type { Category } from "@/lib/types";
 
@@ -114,6 +115,8 @@ export default function HomeScreen() {
     );
   }).length;
 
+  const streak = React.useMemo(() => computeStreak(workouts), [workouts]);
+
   const lastWorkout = workouts[0];
   const today = getTodaySlot();
   const todayDay = today.day;
@@ -142,7 +145,12 @@ export default function HomeScreen() {
         >
           <Feather name="zap" size={14} color={colors.primary} />
           <Text style={[styles.streakText, { color: colors.foreground }]}>
-            {workouts.length}
+            {streak}
+          </Text>
+          <Text
+            style={[styles.streakSuffix, { color: colors.mutedForeground }]}
+          >
+            {streak === 1 ? "day" : "days"}
           </Text>
         </View>
       </View>
@@ -661,6 +669,12 @@ const styles = StyleSheet.create({
   streakText: {
     fontFamily: "Inter_700Bold",
     fontSize: 14,
+  },
+  streakSuffix: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    letterSpacing: 0.4,
+    marginLeft: 2,
   },
   activeCard: {
     marginHorizontal: 20,

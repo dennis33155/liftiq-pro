@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 import React, {
   useCallback,
   useEffect,
@@ -197,6 +198,67 @@ export default function CoachScreen() {
         </Text>
       </View>
 
+      <View style={styles.toolsRow}>
+        <Pressable
+          onPress={() => router.push("/body-metrics")}
+          style={({ pressed }) => [
+            styles.toolBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Feather name="activity" size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.toolTitle, { color: colors.foreground }]}>
+              Body Metrics
+            </Text>
+            <Text
+              style={[styles.toolSub, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+            >
+              Weight {"\u00B7"} body fat trend
+            </Text>
+          </View>
+          <Feather
+            name="chevron-right"
+            size={18}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+        <Pressable
+          onPress={() => router.push("/progress-photos")}
+          style={({ pressed }) => [
+            styles.toolBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Feather name="image" size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.toolTitle, { color: colors.foreground }]}>
+              Progress Photos
+            </Text>
+            <Text
+              style={[styles.toolSub, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+            >
+              Visual log by date
+            </Text>
+          </View>
+          <Feather
+            name="chevron-right"
+            size={18}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+      </View>
+
       <View
         style={[
           styles.card,
@@ -230,8 +292,21 @@ export default function CoachScreen() {
         ) : (
           <View style={{ gap: 8 }}>
             {visibleRecords.map((p, i) => (
-              <PrRow key={p.exerciseId} rank={i + 1} record={p} />
+              <PrRow
+                key={p.exerciseId}
+                rank={i + 1}
+                record={p}
+                onPress={() =>
+                  router.push({
+                    pathname: "/pr-history/[id]",
+                    params: { id: p.exerciseId },
+                  })
+                }
+              />
             ))}
+            <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
+              Tap any PR for trend chart and session log.
+            </Text>
           </View>
         )}
       </View>
@@ -303,7 +378,15 @@ export default function CoachScreen() {
   );
 }
 
-function PrRow({ rank, record }: { rank: number; record: PersonalRecord }) {
+function PrRow({
+  rank,
+  record,
+  onPress,
+}: {
+  rank: number;
+  record: PersonalRecord;
+  onPress?: () => void;
+}) {
   const colors = useColors();
   const lastText =
     record.lastWeight != null && record.lastReps != null
@@ -313,10 +396,16 @@ function PrRow({ rank, record }: { rank: number; record: PersonalRecord }) {
     record.lastDate != null ? formatDate(record.lastDate) : "--";
 
   return (
-    <View
-      style={[
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
         styles.prRow,
-        { borderColor: colors.border },
+        {
+          borderColor: colors.border,
+          opacity: pressed && onPress ? 0.7 : 1,
+          backgroundColor: pressed && onPress ? colors.muted : "transparent",
+        },
       ]}
     >
       <View
@@ -352,7 +441,14 @@ function PrRow({ rank, record }: { rank: number; record: PersonalRecord }) {
           1RM
         </Text>
       </View>
-    </View>
+      {onPress ? (
+        <Feather
+          name="chevron-right"
+          size={16}
+          color={colors.mutedForeground}
+        />
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -497,6 +593,27 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     gap: 12,
+  },
+  toolsRow: {
+    gap: 10,
+  },
+  toolBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  toolTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  toolSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    marginTop: 1,
   },
   cardHeaderRow: {
     flexDirection: "row",

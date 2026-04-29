@@ -73,6 +73,27 @@ function RootLayoutNav() {
           headerRight: () => <HeaderHomeButton />,
         }}
       />
+      <Stack.Screen
+        name="pr-history/[id]"
+        options={{
+          title: "PR History",
+          headerRight: () => <HeaderHomeButton />,
+        }}
+      />
+      <Stack.Screen
+        name="body-metrics"
+        options={{
+          title: "Body Metrics",
+          headerRight: () => <HeaderHomeButton />,
+        }}
+      />
+      <Stack.Screen
+        name="progress-photos"
+        options={{
+          title: "Progress Photos",
+          headerRight: () => <HeaderHomeButton />,
+        }}
+      />
     </Stack>
   );
 }
