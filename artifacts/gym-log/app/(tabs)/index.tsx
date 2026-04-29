@@ -3,11 +3,15 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
 import {
+  ActivityIndicator,
+  Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,7 +28,13 @@ import type { Category } from "@/lib/types";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { active, startWorkout, startSuggestedWorkout, workouts } = useWorkout();
+  const { active, startWorkout, startSuggestedWorkout, startAiWorkout, workouts } =
+    useWorkout();
+
+  const [aiCategory, setAiCategory] = React.useState<Category | null>(null);
+  const [aiNotes, setAiNotes] = React.useState("");
+  const [aiLoading, setAiLoading] = React.useState(false);
+  const aiInFlight = React.useRef(false);
 
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? Math.max(insets.top, 67) : insets.top;
@@ -48,6 +58,52 @@ export default function HomeScreen() {
     router.push("/workout");
   };
 
+  const handleAiOpen = (category: Category) => {
+    if (active) {
+      router.push("/workout");
+      return;
+    }
+    setAiNotes("");
+    setAiCategory(category);
+  };
+
+  const handleAiClose = () => {
+    if (aiLoading) return;
+    setAiCategory(null);
+  };
+
+  const handleAiGenerate = async () => {
+    if (!aiCategory) return;
+    if (aiInFlight.current) return;
+    aiInFlight.current = true;
+    setAiLoading(true);
+    const requestedCategory = aiCategory;
+    try {
+      const trimmed = aiNotes.trim();
+      const { rationale } = await startAiWorkout(requestedCategory, {
+        count: 5,
+        notes: trimmed.length > 0 ? trimmed : undefined,
+      });
+      setAiCategory(null);
+      setAiNotes("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (rationale) {
+        Alert.alert("AI Coach", rationale);
+      }
+      router.push("/workout");
+    } catch (err) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      Alert.alert(
+        "AI request failed",
+        msg + "\n\nCheck your connection and try again.",
+      );
+    } finally {
+      aiInFlight.current = false;
+      setAiLoading(false);
+    }
+  };
+
   const todaysCount = workouts.filter((w) => {
     const d = new Date(w.startedAt);
     const t = new Date();
@@ -63,6 +119,7 @@ export default function HomeScreen() {
   const todayDay = today.day;
 
   return (
+    <>
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingBottom: bottomPad }}
@@ -155,6 +212,9 @@ export default function HomeScreen() {
             onSuggest={() => {
               if (today.category) handleSuggest(today.category);
             }}
+            onAi={() => {
+              if (today.category) handleAiOpen(today.category);
+            }}
           />
           <View style={styles.statRow}>
             <StatTile
@@ -242,10 +302,119 @@ export default function HomeScreen() {
             category={cat}
             onPress={() => handleStart(cat)}
             onSuggest={active ? undefined : () => handleSuggest(cat)}
+            onAi={active ? undefined : () => handleAiOpen(cat)}
           />
         ))}
       </View>
     </ScrollView>
+    <Modal
+      visible={aiCategory !== null}
+      transparent
+      animationType="fade"
+      onRequestClose={handleAiClose}
+    >
+      <Pressable
+        onPress={handleAiClose}
+        style={[styles.modalBackdrop, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View style={styles.modalHeader}>
+            <Feather name="cpu" size={18} color={colors.primary} />
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              AI Workout {aiCategory ? "\u00B7 " + aiCategory : ""}
+            </Text>
+          </View>
+          <Text
+            style={[styles.modalHint, { color: colors.mutedForeground }]}
+          >
+            Optional notes for the coach (energy level, focus areas, soreness).
+          </Text>
+          <TextInput
+            value={aiNotes}
+            onChangeText={setAiNotes}
+            editable={!aiLoading}
+            placeholder="e.g. low energy, focus on chest peak"
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            style={[
+              styles.modalInput,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                color: colors.foreground,
+              },
+            ]}
+          />
+          <View style={styles.modalActions}>
+            <Pressable
+              onPress={handleAiClose}
+              disabled={aiLoading}
+              style={({ pressed }) => [
+                styles.modalBtn,
+                {
+                  backgroundColor: colors.accent,
+                  borderColor: colors.border,
+                  opacity: pressed || aiLoading ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.modalBtnLabel,
+                  { color: colors.foreground },
+                ]}
+              >
+                Cancel
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleAiGenerate}
+              disabled={aiLoading}
+              style={({ pressed }) => [
+                styles.modalBtn,
+                {
+                  backgroundColor: colors.primary,
+                  borderColor: colors.primary,
+                  opacity: pressed ? 0.7 : 1,
+                  flexDirection: "row",
+                },
+              ]}
+            >
+              {aiLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.primaryForeground}
+                />
+              ) : (
+                <Feather
+                  name="zap"
+                  size={14}
+                  color={colors.primaryForeground}
+                />
+              )}
+              <Text
+                style={[
+                  styles.modalBtnLabel,
+                  { color: colors.primaryForeground, marginLeft: 6 },
+                ]}
+              >
+                {aiLoading ? "Generating" : "Generate"}
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+    </>
   );
 }
 
@@ -253,10 +422,12 @@ function TodayCard({
   slot,
   onStart,
   onSuggest,
+  onAi,
 }: {
   slot: ReturnType<typeof getTodaySlot>;
   onStart: () => void;
   onSuggest: () => void;
+  onAi: () => void;
 }) {
   const colors = useColors();
 
@@ -344,6 +515,28 @@ function TodayCard({
         </Text>
       ) : null}
       <View style={todayStyles.actions}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onAi();
+          }}
+          style={({ pressed }) => [
+            todayStyles.btn,
+            {
+              backgroundColor: colors.primary,
+              borderColor: colors.primary,
+              borderRadius: colors.radius,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Feather name="cpu" size={14} color={colors.primaryForeground} />
+          <Text
+            style={[todayStyles.btnText, { color: colors.primaryForeground }]}
+          >
+            AI
+          </Text>
+        </Pressable>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -550,6 +743,64 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 10,
     letterSpacing: 0.2,
+  },
+  modalBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    gap: 14,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  modalTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 18,
+    letterSpacing: -0.3,
+  },
+  modalHint: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  modalInput: {
+    minHeight: 90,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    textAlignVertical: "top",
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  modalBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
 });
 

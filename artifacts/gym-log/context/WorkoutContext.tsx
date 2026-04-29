@@ -18,6 +18,7 @@ import {
   saveCustomExercises,
   saveWorkouts,
 } from "@/lib/storage";
+import { requestWorkoutSuggestion, type AiSuggestedExercise } from "@/lib/api";
 import { buildSuggestedWorkout } from "@/lib/recommendation";
 import {
   FINISHER_EXERCISE_IDS,
@@ -45,6 +46,10 @@ type Ctx = {
   addExerciseToActive: (exerciseId: string) => void;
   populateSuggested: (count?: number) => void;
   startSuggestedWorkout: (category: Category, count?: number) => Workout;
+  startAiWorkout: (
+    category: Category,
+    options?: { count?: number; notes?: string },
+  ) => Promise<{ workout: Workout; rationale: string }>;
   removeExerciseFromActive: (workoutExerciseId: string) => void;
   addSetToExercise: (workoutExerciseId: string) => void;
   removeSet: (workoutExerciseId: string, setId: string) => void;
@@ -228,6 +233,98 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     [customExercises, workouts, makeWorkoutExercise, insertBeforeFinisher],
   );
 
+  const buildWorkoutExerciseFromAi = useCallback(
+    (s: AiSuggestedExercise): WorkoutExercise => ({
+      id: makeId(),
+      exerciseId: s.exerciseId,
+      sets: Array.from({ length: Math.max(1, Math.min(8, s.sets)) }, () => ({
+        id: makeId(),
+        weight: null,
+        reps: s.reps,
+        done: false,
+      })),
+    }),
+    [],
+  );
+
+  const startAiWorkout = useCallback(
+    async (
+      category: Category,
+      options?: { count?: number; notes?: string },
+    ): Promise<{ workout: Workout; rationale: string }> => {
+      const pool = [...SEED_EXERCISES, ...customExercises];
+      const excludeSet = new Set([
+        ...WARMUP_EXERCISE_IDS,
+        ...FINISHER_EXERCISE_IDS,
+      ]);
+      const available = pool
+        .filter((e) => !excludeSet.has(e.id))
+        .filter((e) => e.category === category || e.category === "Full Body")
+        .map((e) => ({
+          id: e.id,
+          name: e.name,
+          category: e.category,
+          primaryMuscles: e.primaryMuscles,
+          equipment: e.equipment,
+        }));
+
+      const recent = workouts.slice(0, 5).map((w) => ({
+        date: new Date(w.startedAt).toISOString().slice(0, 10),
+        category: w.category,
+        exerciseNames: w.exercises
+          .filter((we) => !excludeSet.has(we.exerciseId))
+          .map(
+            (we) =>
+              pool.find((p) => p.id === we.exerciseId)?.name ?? we.exerciseId,
+          ),
+      }));
+
+      const result = await requestWorkoutSuggestion({
+        category,
+        count: options?.count ?? 5,
+        notes: options?.notes,
+        recentWorkouts: recent,
+        availableExercises: available,
+      });
+
+      const validIds = new Set(available.map((a) => a.id));
+      const seen = new Set<string>();
+      const aiBlocks = result.exercises
+        .filter((s) => {
+          if (!validIds.has(s.exerciseId)) return false;
+          if (seen.has(s.exerciseId)) return false;
+          seen.add(s.exerciseId);
+          return true;
+        })
+        .map(buildWorkoutExerciseFromAi);
+
+      if (aiBlocks.length < 2) {
+        throw new Error(
+          "AI returned too few exercises. Try again or use Suggest.",
+        );
+      }
+
+      const warmup = buildWarmupBlocks();
+      const finisher = buildFinisherBlocks();
+      const newWorkout: Workout = {
+        id: makeId(),
+        category,
+        startedAt: Date.now(),
+        endedAt: null,
+        exercises: [...warmup, ...aiBlocks, ...finisher],
+      };
+      setActive(newWorkout);
+      return { workout: newWorkout, rationale: result.rationale };
+    },
+    [
+      customExercises,
+      workouts,
+      buildWarmupBlocks,
+      buildFinisherBlocks,
+      buildWorkoutExerciseFromAi,
+    ],
+  );
+
   const startSuggestedWorkout = useCallback(
     (category: Category, count: number = 5): Workout => {
       const warmup = buildWarmupBlocks();
@@ -385,6 +482,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       addExerciseToActive,
       populateSuggested,
       startSuggestedWorkout,
+      startAiWorkout,
       removeExerciseFromActive,
       addSetToExercise,
       removeSet,
@@ -406,6 +504,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       addExerciseToActive,
       populateSuggested,
       startSuggestedWorkout,
+      startAiWorkout,
       removeExerciseFromActive,
       addSetToExercise,
       removeSet,

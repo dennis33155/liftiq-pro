@@ -21,9 +21,10 @@ type Props = {
   category: Category;
   onPress: () => void;
   onSuggest?: () => void;
+  onAi?: () => void;
 };
 
-export function CategoryCard({ category, onPress, onSuggest }: Props) {
+export function CategoryCard({ category, onPress, onSuggest, onAi }: Props) {
   const colors = useColors();
 
   const handlePress = () => {
@@ -35,6 +36,12 @@ export function CategoryCard({ category, onPress, onSuggest }: Props) {
     if (!onSuggest) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onSuggest();
+  };
+
+  const handleAi = () => {
+    if (!onAi) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onAi();
   };
 
   return (
@@ -67,6 +74,28 @@ export function CategoryCard({ category, onPress, onSuggest }: Props) {
           {category}
         </Text>
       </Pressable>
+      {onAi ? (
+        <Pressable
+          onPress={handleAi}
+          hitSlop={6}
+          style={({ pressed }) => [
+            styles.suggestBtn,
+            {
+              backgroundColor: colors.primary,
+              borderColor: colors.primary,
+              borderRadius: 999,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Feather name="cpu" size={14} color={colors.primaryForeground} />
+          <Text
+            style={[styles.suggestLabel, { color: colors.primaryForeground }]}
+          >
+            AI
+          </Text>
+        </Pressable>
+      ) : null}
       {onSuggest ? (
         <Pressable
           onPress={handleSuggest}
