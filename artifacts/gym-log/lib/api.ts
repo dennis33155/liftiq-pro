@@ -96,8 +96,10 @@ export async function requestWorkoutSuggestion(
 }
 
 export async function requestBodyAnalysis(input: {
-  imageBase64: string;
-  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  images: {
+    imageBase64: string;
+    mimeType: "image/jpeg" | "image/png" | "image/webp";
+  }[];
   angle: BodyAnalysisAngle;
   notes?: string;
 }): Promise<BodyAnalysisResponse> {

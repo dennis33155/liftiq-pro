@@ -1,4 +1,4 @@
-import express, { Router, type IRouter } from "express";
+import { Router, type IRouter } from "express";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -6,23 +6,59 @@ const router: IRouter = Router();
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 6;
+const RATE_LIMIT_SWEEP_MS = 5 * 60_000;
 const ipHits = new Map<string, number[]>();
+let lastSweep = Date.now();
+
+function sweepIfNeeded(now: number): void {
+  if (now - lastSweep < RATE_LIMIT_SWEEP_MS) return;
+  lastSweep = now;
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+  for (const [k, v] of ipHits.entries()) {
+    const fresh = v.filter((t) => t > cutoff);
+    if (fresh.length === 0) ipHits.delete(k);
+    else ipHits.set(k, fresh);
+  }
+}
 
 function rateLimited(ip: string): boolean {
   const now = Date.now();
+  sweepIfNeeded(now);
   const cutoff = now - RATE_LIMIT_WINDOW_MS;
   const hits = (ipHits.get(ip) ?? []).filter((t) => t > cutoff);
   hits.push(now);
-  ipHits.set(ip, hits);
+  if (hits.length === 0) ipHits.delete(ip);
+  else ipHits.set(ip, hits);
   return hits.length > RATE_LIMIT_MAX;
 }
 
-const RequestSchema = z.object({
+const ImageSchema = z.object({
   imageBase64: z.string().min(100),
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
-  angle: z.enum(["front", "side", "back"]),
-  notes: z.string().max(500).optional(),
 });
+
+const RequestSchema = z
+  .object({
+    images: z.array(ImageSchema).min(1).max(4).optional(),
+    imageBase64: z.string().min(100).optional(),
+    mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]).optional(),
+    angle: z.enum(["front", "side", "back"]),
+    notes: z.string().max(500).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.images && !val.imageBase64) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide either `images` array or legacy `imageBase64`.",
+      });
+    }
+    if (val.imageBase64 && !val.mimeType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "`mimeType` is required when using legacy `imageBase64`.",
+      });
+    }
+  });
 
 const DevelopmentAreaSchema = z.object({
   muscle: z.string(),
@@ -71,7 +107,7 @@ Schema:
   "nutritionTip": string (1 sentence)
 }`;
 
-router.post("/body-analysis", express.json({ limit: "20mb" }), async (req, res) => {
+router.post("/body-analysis", async (req, res) => {
   const ip = req.ip ?? "unknown";
   if (rateLimited(ip)) {
     res.status(429).json({ error: "rate_limited" });
@@ -86,7 +122,16 @@ router.post("/body-analysis", express.json({ limit: "20mb" }), async (req, res) 
     return;
   }
 
-  const { imageBase64, mimeType, angle, notes } = parsed.data;
+  const { angle, notes } = parsed.data;
+  const images: { imageBase64: string; mimeType: "image/jpeg" | "image/png" | "image/webp" }[] =
+    parsed.data.images ??
+    (parsed.data.imageBase64 && parsed.data.mimeType
+      ? [{ imageBase64: parsed.data.imageBase64, mimeType: parsed.data.mimeType }]
+      : []);
+  if (images.length === 0) {
+    res.status(400).json({ error: "no_images" });
+    return;
+  }
 
   const baseURL = process.env["AI_INTEGRATIONS_ANTHROPIC_BASE_URL"];
   const apiKey = process.env["AI_INTEGRATIONS_ANTHROPIC_API_KEY"];
@@ -99,7 +144,13 @@ router.post("/body-analysis", express.json({ limit: "20mb" }), async (req, res) 
   const client = new Anthropic({ baseURL, apiKey });
 
   const userText = [
-    "This is a " + angle + " angle progress photo.",
+    images.length === 1
+      ? "This is a " + angle + " angle progress photo."
+      : "These are " +
+        images.length +
+        " progress photos (primary angle: " +
+        angle +
+        "). Treat them as one analysis of the same athlete.",
     notes ? "Athlete notes: " + notes : null,
     "Analyze the visible muscle development and respond with JSON only.",
   ]
@@ -107,6 +158,14 @@ router.post("/body-analysis", express.json({ limit: "20mb" }), async (req, res) 
     .join("\n");
 
   try {
+    const imageBlocks = images.map((img) => ({
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: img.mimeType,
+        data: img.imageBase64,
+      },
+    }));
     const response = await client.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 2048,
@@ -114,17 +173,7 @@ router.post("/body-analysis", express.json({ limit: "20mb" }), async (req, res) 
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mimeType,
-                data: imageBase64,
-              },
-            },
-            { type: "text", text: userText },
-          ],
+          content: [...imageBlocks, { type: "text", text: userText }],
         },
       ],
     });

@@ -34,9 +34,21 @@ const ANGLES: { key: BodyAnalysisAngle; label: string }[] = [
   { key: "back", label: "BACK" },
 ];
 
+const MAX_PHOTOS = 4;
+
+function mimeFromAsset(
+  asset: ImagePicker.ImagePickerAsset,
+): "image/jpeg" | "image/png" | "image/webp" {
+  const m = asset.mimeType?.toLowerCase() ?? "";
+  if (m.includes("png")) return "image/png";
+  if (m.includes("webp")) return "image/webp";
+  return "image/jpeg";
+}
+
 function persistPhoto(
   srcUri: string,
   id: string,
+  index: number,
   mime: "image/jpeg" | "image/png" | "image/webp",
 ): string {
   const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
@@ -44,7 +56,7 @@ function persistPhoto(
     const dir = new Directory(Paths.document, "body-analyses");
     if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
     const src = new File(srcUri);
-    const dest = new File(dir, id + "." + ext);
+    const dest = new File(dir, id + "_" + index + "." + ext);
     src.copy(dest);
     return dest.uri;
   } catch {
@@ -56,8 +68,8 @@ export default function AnalyzeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [angle, setAngle] = useState<BodyAnalysisAngle>("front");
-  const [pickedAsset, setPickedAsset] = useState<ImagePicker.ImagePickerAsset | null>(
-    null,
+  const [pickedAssets, setPickedAssets] = useState<ImagePicker.ImagePickerAsset[]>(
+    [],
   );
   const [submitting, setSubmitting] = useState(false);
   const [history, setHistory] = useState<StoredBodyAnalysis[]>([]);
@@ -75,8 +87,33 @@ export default function AnalyzeScreen() {
     [history, activeId],
   );
 
+  const addAssets = useCallback(
+    (incoming: ImagePicker.ImagePickerAsset[]) => {
+      setPickedAssets((prev) => {
+        const combined = [...prev, ...incoming];
+        if (combined.length > MAX_PHOTOS) {
+          Alert.alert(
+            "Photo limit",
+            "Up to " + MAX_PHOTOS + " photos per analysis. Extras were ignored.",
+          );
+          return combined.slice(0, MAX_PHOTOS);
+        }
+        return combined;
+      });
+    },
+    [],
+  );
+
   const handlePick = useCallback(
     async (source: "library" | "camera") => {
+      if (pickedAssets.length >= MAX_PHOTOS) {
+        Alert.alert(
+          "Photo limit",
+          "You've reached " + MAX_PHOTOS + " photos. Remove one to add more.",
+        );
+        return;
+      }
+      const remaining = MAX_PHOTOS - pickedAssets.length;
       if (source === "camera") {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
@@ -88,11 +125,11 @@ export default function AnalyzeScreen() {
         }
         const res = await ImagePicker.launchCameraAsync({
           mediaTypes: ["images"],
-          quality: 0.7,
+          quality: 0.5,
           base64: true,
           allowsEditing: false,
         });
-        if (!res.canceled && res.assets[0]) setPickedAsset(res.assets[0]);
+        if (!res.canceled && res.assets[0]) addAssets([res.assets[0]]);
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) {
@@ -104,58 +141,78 @@ export default function AnalyzeScreen() {
         }
         const res = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ["images"],
-          quality: 0.7,
+          quality: 0.5,
           base64: true,
           allowsEditing: false,
+          allowsMultipleSelection: true,
+          selectionLimit: remaining,
         });
-        if (!res.canceled && res.assets[0]) setPickedAsset(res.assets[0]);
+        if (!res.canceled && res.assets.length > 0) addAssets(res.assets);
       }
     },
-    [],
+    [pickedAssets.length, addAssets],
   );
 
+  const handleRemovePicked = useCallback((idx: number) => {
+    setPickedAssets((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
+
   const handleAnalyze = useCallback(async () => {
-    if (!pickedAsset || !pickedAsset.base64) {
+    if (submitting) return;
+    if (pickedAssets.length === 0) {
       Alert.alert("No photo", "Pick or take a progress photo first.");
+      return;
+    }
+    const usable = pickedAssets.filter((a) => !!a.base64);
+    if (usable.length === 0) {
+      Alert.alert("No photo data", "Photos could not be read. Try again.");
       return;
     }
     setSubmitting(true);
     try {
-      const mime: "image/jpeg" | "image/png" | "image/webp" = pickedAsset.mimeType
-        ?.toLowerCase()
-        .includes("png")
-        ? "image/png"
-        : pickedAsset.mimeType?.toLowerCase().includes("webp")
-          ? "image/webp"
-          : "image/jpeg";
+      const images = usable.map((a) => ({
+        imageBase64: a.base64 as string,
+        mimeType: mimeFromAsset(a),
+      }));
 
       const result = await requestBodyAnalysis({
-        imageBase64: pickedAsset.base64,
-        mimeType: mime,
+        images,
         angle,
       });
 
       const id = "ba_" + Date.now();
-      const persistedUri = persistPhoto(pickedAsset.uri, id, mime);
+      const persistedUris = usable.map((a, i) =>
+        persistPhoto(a.uri, id, i, mimeFromAsset(a)),
+      );
 
       const entry: StoredBodyAnalysis = {
         id,
         createdAt: result.createdAt,
         angle,
-        photoUri: persistedUri,
+        photoUris: persistedUris,
         analysis: result.analysis,
       };
-      const next = await saveBodyAnalysis(entry);
+      const next = await saveBodyAnalysis(entry, (evictedUris) => {
+        for (const uri of evictedUris) {
+          if (!uri.startsWith("file://")) continue;
+          try {
+            const f = new File(uri);
+            if (f.exists) f.delete();
+          } catch {
+            // ignore: file may have been removed already
+          }
+        }
+      });
       setHistory(next);
       setActiveId(entry.id);
-      setPickedAsset(null);
+      setPickedAssets([]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       Alert.alert("Analysis failed", msg);
     } finally {
       setSubmitting(false);
     }
-  }, [pickedAsset, angle]);
+  }, [pickedAssets, angle, submitting]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -167,9 +224,10 @@ export default function AnalyzeScreen() {
           onPress: async () => {
             try {
               const target = history.find((h) => h.id === id);
-              if (target?.photoUri.startsWith("file://")) {
+              for (const uri of target?.photoUris ?? []) {
+                if (!uri.startsWith("file://")) continue;
                 try {
-                  const f = new File(target.photoUri);
+                  const f = new File(uri);
                   if (f.exists) f.delete();
                 } catch {
                   // ignore: file may have been removed already
@@ -269,66 +327,132 @@ export default function AnalyzeScreen() {
         ]}
       >
         <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>
-          STEP 2 \u00B7 PHOTO
+          STEP 2 \u00B7 PHOTOS
         </Text>
-        {pickedAsset ? (
+        {pickedAssets.length > 0 ? (
           <View style={{ gap: 10 }}>
-            <Image
-              source={{ uri: pickedAsset.uri }}
-              style={styles.preview}
-              resizeMode="cover"
-            />
-            <Pressable
-              onPress={() => setPickedAsset(null)}
-              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-            >
-              <Text style={[styles.linkText, { color: colors.primary }]}>
-                Remove photo
-              </Text>
-            </Pressable>
+            <View style={styles.thumbGrid}>
+              {pickedAssets.map((a, i) => (
+                <View
+                  key={a.uri + ":" + i}
+                  style={[
+                    styles.thumbWrap,
+                    { borderColor: colors.border },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: a.uri }}
+                    style={styles.thumbImg}
+                    resizeMode="cover"
+                  />
+                  <Pressable
+                    onPress={() => handleRemovePicked(i)}
+                    hitSlop={8}
+                    style={[
+                      styles.thumbRemove,
+                      { backgroundColor: colors.background, borderColor: colors.border },
+                    ]}
+                  >
+                    <Feather name="x" size={12} color={colors.foreground} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+            <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
+              {pickedAssets.length} of {MAX_PHOTOS} \u00B7 add more or remove any
+            </Text>
+            <View style={styles.pickRow}>
+              <Pressable
+                onPress={() => handlePick("camera")}
+                disabled={pickedAssets.length >= MAX_PHOTOS}
+                style={({ pressed }) => [
+                  styles.pickBtn,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    opacity:
+                      pickedAssets.length >= MAX_PHOTOS ? 0.4 : pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather name="camera" size={18} color={colors.foreground} />
+                <Text style={[styles.pickBtnText, { color: colors.foreground }]}>
+                  Add via Camera
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handlePick("library")}
+                disabled={pickedAssets.length >= MAX_PHOTOS}
+                style={({ pressed }) => [
+                  styles.pickBtn,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    opacity:
+                      pickedAssets.length >= MAX_PHOTOS ? 0.4 : pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather name="image" size={18} color={colors.foreground} />
+                <Text style={[styles.pickBtnText, { color: colors.foreground }]}>
+                  Add from Library
+                </Text>
+              </Pressable>
+            </View>
           </View>
         ) : (
-          <View style={styles.pickRow}>
-            <Pressable
-              onPress={() => handlePick("camera")}
-              style={({ pressed }) => [
-                styles.pickBtn,
-                {
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <Feather name="camera" size={18} color={colors.foreground} />
-              <Text style={[styles.pickBtnText, { color: colors.foreground }]}>
-                Camera
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => handlePick("library")}
-              style={({ pressed }) => [
-                styles.pickBtn,
-                {
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <Feather name="image" size={18} color={colors.foreground} />
-              <Text style={[styles.pickBtnText, { color: colors.foreground }]}>
-                Library
-              </Text>
-            </Pressable>
+          <View style={{ gap: 8 }}>
+            <View style={styles.pickRow}>
+              <Pressable
+                onPress={() => handlePick("camera")}
+                style={({ pressed }) => [
+                  styles.pickBtn,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather name="camera" size={18} color={colors.foreground} />
+                <Text style={[styles.pickBtnText, { color: colors.foreground }]}>
+                  Camera
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handlePick("library")}
+                style={({ pressed }) => [
+                  styles.pickBtn,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather name="image" size={18} color={colors.foreground} />
+                <Text style={[styles.pickBtnText, { color: colors.foreground }]}>
+                  Library
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
+              Add up to {MAX_PHOTOS} angles per analysis
+            </Text>
           </View>
         )}
       </View>
 
       <PrimaryButton
-        label={submitting ? "Analyzing..." : "Analyze Photo"}
+        label={
+          submitting
+            ? "Analyzing..."
+            : pickedAssets.length > 1
+              ? "Analyze " + pickedAssets.length + " Photos"
+              : "Analyze Photo"
+        }
         onPress={handleAnalyze}
-        disabled={!pickedAsset || submitting}
+        disabled={pickedAssets.length === 0 || submitting}
         icon={
           submitting ? (
             <ActivityIndicator color={colors.primaryForeground} />
@@ -370,7 +494,29 @@ export default function AnalyzeScreen() {
                   },
                 ]}
               >
-                <Image source={{ uri: h.photoUri }} style={styles.histThumb} />
+                <View>
+                  <Image
+                    source={{ uri: h.photoUris[0] }}
+                    style={styles.histThumb}
+                  />
+                  {h.photoUris.length > 1 ? (
+                    <View
+                      style={[
+                        styles.histCountBadge,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.histCountText,
+                          { color: colors.primaryForeground },
+                        ]}
+                      >
+                        {h.photoUris.length}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={[
@@ -430,7 +576,7 @@ function AnalysisCard({
     >
       <View style={styles.resultHeader}>
         <Image
-          source={{ uri: analysis.photoUri }}
+          source={{ uri: analysis.photoUris[0] }}
           style={styles.resultPhoto}
         />
         <View style={{ flex: 1, gap: 4 }}>
@@ -453,6 +599,19 @@ function AnalysisCard({
           <Feather name="trash-2" size={16} color={colors.mutedForeground} />
         </Pressable>
       </View>
+
+      {analysis.photoUris.length > 1 ? (
+        <View style={styles.resultStrip}>
+          {analysis.photoUris.slice(1).map((uri, i) => (
+            <Image
+              key={uri + ":" + i}
+              source={{ uri }}
+              style={[styles.resultStripImg, { borderColor: colors.border }]}
+              resizeMode="cover"
+            />
+          ))}
+        </View>
+      ) : null}
 
       <Text style={[styles.resultBody, { color: colors.foreground }]}>
         {a.overallSummary}
@@ -613,15 +772,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
   },
-  preview: {
-    width: "100%",
-    aspectRatio: 3 / 4,
-    borderRadius: 10,
-  },
-  linkText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
-  },
   resultCard: {
     padding: 16,
     borderRadius: 14,
@@ -718,6 +868,66 @@ const styles = StyleSheet.create({
     width: 44,
     height: 56,
     borderRadius: 6,
+  },
+  histCountBadge: {
+    position: "absolute",
+    bottom: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  histCountText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  thumbGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  thumbWrap: {
+    width: 84,
+    height: 108,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "visible",
+    position: "relative",
+  },
+  thumbImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 10,
+  },
+  thumbRemove: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  helperText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+  },
+  resultStrip: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  resultStripImg: {
+    width: 56,
+    height: 72,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   histTitle: {
     fontFamily: "Inter_700Bold",
