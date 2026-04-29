@@ -64,6 +64,11 @@ const BodyMetricSchema = z.object({
 
 const RequestSchema = z.object({
   notes: z.string().max(400).optional(),
+  // Pro entitlement claim (self-attested today). Server returns 403 when
+  // false. When real billing is wired, replace this client-supplied flag
+  // with a server-verified entitlement (signed token / authenticated /me
+  // lookup) before treating Pro as paid.
+  isPro: z.boolean(),
   personalRecords: z.array(PRSchema).max(60),
   recentWorkouts: z.array(RecentWorkoutSchema).max(15),
   availableExercises: z.array(AvailableExerciseSchema).min(1).max(200),
@@ -160,6 +165,14 @@ router.post("/coach", async (req, res) => {
     res.status(400).json({
       error: "invalid_request",
       details: parsed.error.flatten(),
+    });
+    return;
+  }
+
+  if (parsed.data.isPro !== true) {
+    res.status(403).json({
+      error: "pro_required",
+      message: "Pro subscription required",
     });
     return;
   }

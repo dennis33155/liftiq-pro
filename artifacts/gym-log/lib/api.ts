@@ -8,6 +8,34 @@ export function getApiBaseUrl(): string {
   return "https://" + domain;
 }
 
+/**
+ * Thrown when the server responds 403 because the caller is not on the Pro
+ * tier. UIs can catch this and surface the upgrade modal.
+ */
+export class ProRequiredError extends Error {
+  readonly code = "pro_required" as const;
+  constructor(message?: string) {
+    super(message ?? "Pro subscription required");
+    this.name = "ProRequiredError";
+  }
+}
+
+async function readErrorBody(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function isProRequired(body: unknown): boolean {
+  return (
+    !!body &&
+    typeof body === "object" &&
+    (body as { error?: unknown }).error === "pro_required"
+  );
+}
+
 export type AiSuggestedExercise = {
   exerciseId: string;
   sets: number;
@@ -26,6 +54,7 @@ export type WorkoutSuggestionRequest = {
   category: string;
   count?: number;
   notes?: string;
+  isPro: boolean;
   recentWorkouts: {
     date: string;
     category: string;
@@ -50,11 +79,11 @@ export async function requestWorkoutSuggestion(
     body: JSON.stringify(input),
   });
   if (!res.ok) {
-    let body: unknown = null;
-    try {
-      body = await res.json();
-    } catch {
-      // ignore
+    const body = await readErrorBody(res);
+    if (res.status === 403 && isProRequired(body)) {
+      throw new ProRequiredError(
+        (body as { message?: string }).message,
+      );
     }
     const detail =
       body && typeof body === "object" && "error" in body
@@ -97,6 +126,7 @@ export type CoachBodyMetric = {
 
 export type CoachRequest = {
   notes?: string;
+  isPro: boolean;
   personalRecords: CoachPersonalRecord[];
   recentWorkouts: CoachRecentWorkout[];
   availableExercises: CoachAvailableExercise[];
@@ -146,11 +176,11 @@ export async function requestCoachRecommendations(
     body: JSON.stringify(input),
   });
   if (!res.ok) {
-    let body: unknown = null;
-    try {
-      body = await res.json();
-    } catch {
-      // ignore
+    const body = await readErrorBody(res);
+    if (res.status === 403 && isProRequired(body)) {
+      throw new ProRequiredError(
+        (body as { message?: string }).message,
+      );
     }
     const detail =
       body && typeof body === "object" && "error" in body
@@ -164,11 +194,10 @@ export async function requestCoachRecommendations(
 export type AnalyzeProgressPhotoRequest = {
   imageDataUri: string;
   photoDate: number;
-  tier?: "free" | "premium";
+  isPro: boolean;
 };
 
 export type AnalyzeProgressPhotoUsage = {
-  tier: "free" | "premium";
   used: number;
   limit: number;
   remaining: number;
@@ -184,12 +213,10 @@ export type AnalyzeProgressPhotoResponse = {
 
 export class WeeklyAiLimitError extends Error {
   readonly code = "weekly_limit_reached" as const;
-  readonly tier: "free" | "premium";
   readonly limit: number;
   readonly used: number;
   readonly resetAt: number;
   constructor(opts: {
-    tier: "free" | "premium";
     limit: number;
     used: number;
     resetAt: number;
@@ -200,7 +227,6 @@ export class WeeklyAiLimitError extends Error {
         "You've reached your weekly AI limit. Upgrade to continue.",
     );
     this.name = "WeeklyAiLimitError";
-    this.tier = opts.tier;
     this.limit = opts.limit;
     this.used = opts.used;
     this.resetAt = opts.resetAt;
@@ -217,11 +243,11 @@ export async function requestPhotoAnalysis(
     body: JSON.stringify(input),
   });
   if (!res.ok) {
-    let body: unknown = null;
-    try {
-      body = await res.json();
-    } catch {
-      // ignore
+    const body = await readErrorBody(res);
+    if (res.status === 403 && isProRequired(body)) {
+      throw new ProRequiredError(
+        (body as { message?: string }).message,
+      );
     }
     if (
       res.status === 429 &&
@@ -230,14 +256,12 @@ export async function requestPhotoAnalysis(
       (body as { error?: unknown }).error === "weekly_limit_reached"
     ) {
       const b = body as {
-        tier?: "free" | "premium";
         limit?: number;
         used?: number;
         resetAt?: number;
         message?: string;
       };
       throw new WeeklyAiLimitError({
-        tier: b.tier ?? "free",
         limit: typeof b.limit === "number" ? b.limit : 0,
         used: typeof b.used === "number" ? b.used : 0,
         resetAt:

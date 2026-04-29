@@ -8,33 +8,40 @@ import React, {
   useState,
 } from "react";
 
-export type Tier = "free" | "premium";
+import { useSubscription } from "@/lib/subscription";
 
-export const AI_WEEKLY_LIMITS: Record<Tier, number> = {
-  free: 3,
-  premium: 20,
-};
+/**
+ * Tracks weekly AI photo-analysis usage for Pro users.
+ *
+ * Free users have no AI photo-analysis budget at all (the entire feature is
+ * locked behind the upgrade prompt). Pro users are capped at
+ * PRO_WEEKLY_PHOTO_LIMIT successful analyses per calendar week (Monday start),
+ * matching the absolute hard cap enforced server-side.
+ *
+ * The server is the source of truth for the cap (see photo-analysis.ts);
+ * this client-side mirror exists purely for instant feedback so the UI can
+ * pre-check before paying network round-trips.
+ */
+export const PRO_WEEKLY_PHOTO_LIMIT = 20;
 
 const STORAGE_KEY = "gymlog.aiUsage.v1";
 
 type StoredState = {
-  tier: Tier;
   weekStart: number;
   used: number;
 };
 
 type Ctx = {
   ready: boolean;
-  tier: Tier;
+  isPro: boolean;
   used: number;
   limit: number;
   remaining: number;
   weekStartAt: number;
   weekResetAt: number;
-  setTier: (next: Tier) => Promise<void>;
-  /** Increment after a successful AI call. */
+  /** Increment after a successful AI call (Pro users only). */
   incrementUsage: () => Promise<void>;
-  /** Returns true if the user is allowed at least one more analysis this week. */
+  /** Returns true if the user is Pro AND has at least one analysis left. */
   canUseNow: () => boolean;
   /** Reset usage counter (does not change tier). For dev/testing only. */
   resetUsage: () => Promise<void>;
@@ -59,7 +66,7 @@ function getCurrentWeekStart(now: Date = new Date()): number {
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function defaultState(): StoredState {
-  return { tier: "free", weekStart: getCurrentWeekStart(), used: 0 };
+  return { weekStart: getCurrentWeekStart(), used: 0 };
 }
 
 function rollIfNewWeek(s: StoredState): StoredState {
@@ -69,10 +76,12 @@ function rollIfNewWeek(s: StoredState): StoredState {
 }
 
 export function AiUsageProvider({ children }: { children: React.ReactNode }) {
+  const { isPro } = useSubscription();
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<StoredState>(defaultState);
 
-  // Hydrate from storage.
+  // Hydrate from storage. Tolerates the legacy shape that included a `tier`
+  // field; the field is ignored in the new model.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -81,8 +90,6 @@ export function AiUsageProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled && raw) {
           const parsed = JSON.parse(raw) as Partial<StoredState> | null;
           if (parsed && typeof parsed === "object") {
-            const tier: Tier =
-              parsed.tier === "premium" ? "premium" : "free";
             const used =
               typeof parsed.used === "number" && parsed.used >= 0
                 ? Math.floor(parsed.used)
@@ -91,7 +98,7 @@ export function AiUsageProvider({ children }: { children: React.ReactNode }) {
               typeof parsed.weekStart === "number" && parsed.weekStart > 0
                 ? parsed.weekStart
                 : getCurrentWeekStart();
-            setState(rollIfNewWeek({ tier, used, weekStart }));
+            setState(rollIfNewWeek({ used, weekStart }));
           }
         }
       } catch {
@@ -105,23 +112,10 @@ export function AiUsageProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Persist after hydration only, to avoid wiping stored data on first paint.
+  // Persist after hydration only.
   useEffect(() => {
     if (!ready) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const json = JSON.stringify(state);
-        if (!cancelled) {
-          await AsyncStorage.setItem(STORAGE_KEY, json);
-        }
-      } catch {
-        // ignore write failure
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {});
   }, [ready, state]);
 
   // Auto-roll the week when the calendar ticks over while the app is open.
@@ -135,10 +129,6 @@ export function AiUsageProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
-  const setTier = useCallback(async (next: Tier) => {
-    setState((s) => ({ ...rollIfNewWeek(s), tier: next }));
-  }, []);
-
   const incrementUsage = useCallback(async () => {
     setState((s) => {
       const rolled = rollIfNewWeek(s);
@@ -147,38 +137,39 @@ export function AiUsageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetUsage = useCallback(async () => {
-    setState((s) => ({ ...s, weekStart: getCurrentWeekStart(), used: 0 }));
+    setState({ weekStart: getCurrentWeekStart(), used: 0 });
   }, []);
 
-  const limit = AI_WEEKLY_LIMITS[state.tier];
+  const limit = isPro ? PRO_WEEKLY_PHOTO_LIMIT : 0;
   const remaining = Math.max(0, limit - state.used);
   const weekResetAt = state.weekStart + ONE_WEEK_MS;
 
-  const canUseNow = useCallback(() => remaining > 0, [remaining]);
+  const canUseNow = useCallback(
+    () => isPro && remaining > 0,
+    [isPro, remaining],
+  );
 
   const value = useMemo<Ctx>(
     () => ({
       ready,
-      tier: state.tier,
+      isPro,
       used: state.used,
       limit,
       remaining,
       weekStartAt: state.weekStart,
       weekResetAt,
-      setTier,
       incrementUsage,
       canUseNow,
       resetUsage,
     }),
     [
       ready,
-      state.tier,
+      isPro,
       state.used,
       state.weekStart,
       limit,
       remaining,
       weekResetAt,
-      setTier,
       incrementUsage,
       canUseNow,
       resetUsage,

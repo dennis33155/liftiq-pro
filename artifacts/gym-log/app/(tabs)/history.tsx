@@ -22,23 +22,83 @@ import {
   workoutDurationMinutes,
   workoutVolume,
 } from "@/lib/progression";
+import { FREE_HISTORY_DAYS, useSubscription } from "@/lib/subscription";
 import type { Workout } from "@/lib/types";
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function HistoryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { workouts, loaded, deleteWorkout } = useWorkout();
+  const { isPro, ready: subReady, showUpgradePrompt } = useSubscription();
 
   const sorted = useMemo(
     () => [...workouts].sort((a, b) => b.startedAt - a.startedAt),
     [workouts],
   );
 
+  // Until the subscription state is hydrated from storage, show the full
+  // list. This prevents a Pro user from briefly seeing the "X workouts
+  // hidden" banner / 14-day cap on app start.
+  const visible = useMemo(() => {
+    if (!subReady || isPro) return sorted;
+    const cutoff = Date.now() - FREE_HISTORY_DAYS * ONE_DAY_MS;
+    return sorted.filter((w) => w.startedAt >= cutoff);
+  }, [sorted, isPro, subReady]);
+
+  const hiddenCount = subReady && !isPro ? sorted.length - visible.length : 0;
+
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? Math.max(insets.top, 67) : insets.top;
   const bottomPad = isWeb ? 84 + 16 : 100;
 
-  if (loaded && sorted.length === 0) {
+  const Header = (
+    <View style={styles.headerRow}>
+      <View>
+        <Text style={[styles.h1, { color: colors.foreground }]}>History</Text>
+        <Text style={[styles.count, { color: colors.mutedForeground }]}>
+          {visible.length} {visible.length === 1 ? "workout" : "workouts"}
+          {!isPro && hiddenCount > 0
+            ? "  \u00B7  last " + FREE_HISTORY_DAYS + " days"
+            : ""}
+        </Text>
+      </View>
+      <LiveDateTime variant="stack" align="right" />
+    </View>
+  );
+
+  const FreeBanner = !isPro && hiddenCount > 0 ? (
+    <Pressable
+      onPress={showUpgradePrompt}
+      style={({ pressed }) => [
+        styles.banner,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.primary,
+          borderRadius: colors.radius,
+          opacity: pressed ? 0.75 : 1,
+        },
+      ]}
+    >
+      <Feather name="lock" size={16} color={colors.primary} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.bannerTitle, { color: colors.foreground }]}>
+          {hiddenCount} earlier {hiddenCount === 1 ? "workout" : "workouts"}{" "}
+          hidden
+        </Text>
+        <Text
+          style={[styles.bannerSub, { color: colors.mutedForeground }]}
+        >
+          Free shows the last {FREE_HISTORY_DAYS} days. Upgrade for full
+          history.
+        </Text>
+      </View>
+      <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+    </Pressable>
+  ) : null;
+
+  if (loaded && visible.length === 0) {
     return (
       <View
         style={[
@@ -54,10 +114,21 @@ export default function HistoryScreen() {
           <Text style={[styles.h1, { color: colors.foreground }]}>History</Text>
           <LiveDateTime variant="stack" align="right" />
         </View>
+        {FreeBanner ? (
+          <View style={{ paddingHorizontal: 20 }}>{FreeBanner}</View>
+        ) : null}
         <EmptyState
           icon="clock"
-          title="No workouts yet"
-          description="Finish your first workout and it will show up here."
+          title={
+            !isPro && hiddenCount > 0
+              ? "No workouts in the last " + FREE_HISTORY_DAYS + " days"
+              : "No workouts yet"
+          }
+          description={
+            !isPro && hiddenCount > 0
+              ? "Upgrade to Pro to see your full training history."
+              : "Finish your first workout and it will show up here."
+          }
         />
       </View>
     );
@@ -66,7 +137,7 @@ export default function HistoryScreen() {
   return (
     <FlatList
       style={[styles.container, { backgroundColor: colors.background }]}
-      data={sorted}
+      data={visible}
       keyExtractor={(w) => w.id}
       contentContainerStyle={{
         paddingTop: topPad + 8,
@@ -74,14 +145,9 @@ export default function HistoryScreen() {
         paddingHorizontal: 20,
       }}
       ListHeaderComponent={
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={[styles.h1, { color: colors.foreground }]}>History</Text>
-            <Text style={[styles.count, { color: colors.mutedForeground }]}>
-              {sorted.length} {sorted.length === 1 ? "workout" : "workouts"}
-            </Text>
-          </View>
-          <LiveDateTime variant="stack" align="right" />
+        <View>
+          {Header}
+          {FreeBanner}
         </View>
       }
       ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
@@ -216,6 +282,24 @@ const styles = StyleSheet.create({
   count: {
     fontFamily: "Inter_500Medium",
     fontSize: 13,
+  },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 14,
+  },
+  bannerTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  bannerSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
   },
   card: {
     borderWidth: StyleSheet.hairlineWidth,

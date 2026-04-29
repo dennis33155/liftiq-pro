@@ -30,6 +30,7 @@ import {
   type CoachRecommendations,
   type CoachResponse,
 } from "@/lib/api";
+import { useSubscription } from "@/lib/subscription";
 import {
   computePersonalRecords,
   topPersonalRecords,
@@ -68,6 +69,7 @@ export default function CoachScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { workouts, allExercises } = useWorkout();
+  const { isPro, showUpgradePrompt } = useSubscription();
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [stored, setStored] = useState<StoredCoach | null>(null);
@@ -161,6 +163,7 @@ export default function CoachScreen() {
 
       const result: CoachResponse = await requestCoachRecommendations({
         notes: notes.trim() || undefined,
+        isPro,
         personalRecords,
         recentWorkouts,
         availableExercises,
@@ -187,7 +190,13 @@ export default function CoachScreen() {
         setSubmitting(false);
       }
     }
-  }, [submitting, allRecords, workouts, allExercises, notes]);
+  }, [submitting, allRecords, workouts, allExercises, notes, isPro]);
+
+  // Gate after all hooks have run (rules-of-hooks: hook count must be stable
+  // across renders, including when the user upgrades from Free to Pro).
+  if (!isPro) {
+    return <CoachLockedScreen onUpgrade={showUpgradePrompt} />;
+  }
 
   return (
     <ScrollView
@@ -593,6 +602,87 @@ function Section({
         {title}
       </Text>
       {children}
+    </View>
+  );
+}
+
+function CoachLockedScreen({ onUpgrade }: { onUpgrade: () => void }) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        paddingTop: insets.top + 16,
+        paddingBottom: insets.bottom + 100,
+        paddingHorizontal: 20,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 32,
+        }}
+      >
+        <View style={{ gap: 4, flex: 1 }}>
+          <Text style={[styles.kicker, { color: colors.primary }]}>
+            AI COACH
+          </Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            Personal Bests {"\u00B7"} Recommendations
+          </Text>
+        </View>
+        <LiveDateTime variant="stack" align="right" />
+      </View>
+
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 20 }}>
+        <View
+          style={{
+            width: 88,
+            height: 88,
+            borderRadius: 44,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.primary + "1F",
+          }}
+        >
+          <Feather name="lock" size={38} color={colors.primary} />
+        </View>
+        <Text
+          style={{
+            fontFamily: "Inter_700Bold",
+            fontSize: 22,
+            letterSpacing: -0.3,
+            color: colors.foreground,
+            textAlign: "center",
+          }}
+        >
+          AI Coach is a Pro feature
+        </Text>
+        <Text
+          style={{
+            fontFamily: "Inter_400Regular",
+            fontSize: 14,
+            lineHeight: 20,
+            color: colors.mutedForeground,
+            textAlign: "center",
+            paddingHorizontal: 24,
+          }}
+        >
+          Pull live PRs from your training log and get AI-driven advice from
+          Claude on what to push next. Available with Pro.
+        </Text>
+        <PrimaryButton
+          label="Upgrade to Pro"
+          onPress={onUpgrade}
+          icon={<Feather name="zap" size={16} color={colors.primaryForeground} />}
+          style={{ minWidth: 220 }}
+        />
+      </View>
     </View>
   );
 }

@@ -20,6 +20,7 @@ import { CategoryCard } from "@/components/CategoryCard";
 import { LiveDateTime } from "@/components/LiveDateTime";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
+import { useSubscription } from "@/lib/subscription";
 import {
   CUSTOM_SCHEDULE_OPTIONS,
   getEffectiveTodaySlot,
@@ -39,6 +40,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { active, startWorkout, startSuggestedWorkout, startAiWorkout, workouts } =
     useWorkout();
+  const { isPro, requireProOrPrompt } = useSubscription();
 
   const [aiCategory, setAiCategory] = React.useState<Category | null>(null);
   const [aiNotes, setAiNotes] = React.useState("");
@@ -72,6 +74,7 @@ export default function HomeScreen() {
       router.push("/workout");
       return;
     }
+    if (!requireProOrPrompt()) return;
     setAiNotes("");
     setAiCategory(category);
   };
@@ -92,6 +95,7 @@ export default function HomeScreen() {
       const { rationale } = await startAiWorkout(requestedCategory, {
         count: 5,
         notes: trimmed.length > 0 ? trimmed : undefined,
+        isPro,
       });
       setAiCategory(null);
       setAiNotes("");

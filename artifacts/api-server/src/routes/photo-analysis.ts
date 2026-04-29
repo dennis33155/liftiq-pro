@@ -36,17 +36,21 @@ function rateLimited(ip: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Weekly limit: per-IP cap, calendar week (UTC Monday start).
+// Pro / Free model
+//
+// Free users are blocked entirely (403). Pro users are bounded by a hard
+// weekly cap to keep OpenAI cost-per-IP-per-week finite.
 //
 // Threat model & limits this code DOES enforce:
 //
-// 1. Absolute ceiling: no IP can exceed WEEKLY_HARD_CAP (= the premium
-//    tier limit) successful analyses in a calendar week. Even if the client
-//    sends `tier: "premium"` to claim the higher allowance, that allowance
-//    is itself bounded. So total OpenAI cost-per-IP-per-week is bounded,
-//    satisfying "no unlimited usage". The burst limit above bounds rate.
+// 1. Pro gate: a missing or false `isPro` returns 403 before any AI work.
 //
-// 2. Atomic reservation: slots are reserved synchronously *before* the
+// 2. Absolute weekly ceiling: even with `isPro: true` claimed, no IP can
+//    exceed PRO_WEEKLY_LIMIT successful analyses in a calendar week. So
+//    total OpenAI cost-per-IP-per-week is bounded. The burst limit above
+//    bounds rate.
+//
+// 3. Atomic reservation: slots are reserved synchronously *before* the
 //    async OpenAI call. This closes the check-then-act race where multiple
 //    concurrent requests from the same IP could each pass a pre-check
 //    before any hit is recorded. If the OpenAI call then fails the slot is
@@ -54,23 +58,19 @@ function rateLimited(ip: string): boolean {
 //
 // What this DOES NOT enforce (acknowledged scope limits):
 //
-// - Tier authenticity. There is no auth/entitlement system in this app, so
-//   a client can claim "premium" without paying. For this personal,
+// - Pro authenticity. There is no auth/entitlement system in this app, so
+//   a client can claim `isPro: true` without paying. For this personal,
 //   single-user app the upgrade flow is a local-only self-attestation
 //   gated through Settings; costs stay bounded by the hard cap above.
-//   When a real billing/auth integration is added the `tier` value should
+//   When a real billing/auth integration is added the `isPro` value should
 //   be replaced with a server-verified entitlement (e.g. a signed token
-//   from RevenueCat/Stripe webhook → DB lookup) before this comment
-//   should be considered satisfied for a multi-user product.
+//   from RevenueCat/Stripe/Apple webhook → DB lookup).
 //
 // - Counter durability. State lives in-process Map<>; a server restart
 //   resets all counters. Acceptable for a single-instance personal app;
 //   would need Redis/DB for horizontal scale or strict accounting.
 // ---------------------------------------------------------------------------
-type Tier = "free" | "premium";
-const WEEKLY_LIMIT: Record<Tier, number> = { free: 3, premium: 20 };
-/** Absolute server-side ceiling. Cannot be bypassed by client tier claims. */
-const WEEKLY_HARD_CAP = Math.max(WEEKLY_LIMIT.free, WEEKLY_LIMIT.premium);
+const PRO_WEEKLY_LIMIT = 20;
 
 const weeklyHits = new Map<string, number[]>();
 let lastWeeklySweep = Date.now();
@@ -100,28 +100,28 @@ function sweepWeeklyIfNeeded(now: number): void {
 
 type WeeklyState = {
   used: number;
-  /** Limit reported to the client — bounded by both their claimed tier AND the hard cap. */
   limit: number;
   resetAt: number;
 };
 
 /** Read current week count (does not mutate). */
-function readWeeklyState(ip: string, claimedTier: Tier): WeeklyState {
+function readWeeklyState(ip: string): WeeklyState {
   const now = Date.now();
   sweepWeeklyIfNeeded(now);
   const weekStart = getCurrentWeekStart(now);
   const fresh = (weeklyHits.get(ip) ?? []).filter((t) => t >= weekStart);
   if (fresh.length === 0) weeklyHits.delete(ip);
   else weeklyHits.set(ip, fresh);
-  const tierLimit = WEEKLY_LIMIT[claimedTier];
-  const limit = Math.min(tierLimit, WEEKLY_HARD_CAP);
-  const resetAt = weekStart + ONE_WEEK_MS;
-  return { used: fresh.length, limit, resetAt };
+  return {
+    used: fresh.length,
+    limit: PRO_WEEKLY_LIMIT,
+    resetAt: weekStart + ONE_WEEK_MS,
+  };
 }
 
 /**
  * Atomically reserve one weekly slot if available, returning the new state.
- * Returns null if the (claimed-tier-bounded) limit would be exceeded.
+ * Returns ok:false if the limit would be exceeded.
  *
  * This is the single mutation point for the weekly counter. It runs entirely
  * synchronously between read and write so concurrent in-flight requests
@@ -129,24 +129,19 @@ function readWeeklyState(ip: string, claimedTier: Tier): WeeklyState {
  */
 function reserveWeeklySlot(
   ip: string,
-  claimedTier: Tier,
 ): { ok: true; state: WeeklyState } | { ok: false; state: WeeklyState } {
   const now = Date.now();
   sweepWeeklyIfNeeded(now);
   const weekStart = getCurrentWeekStart(now);
   const fresh = (weeklyHits.get(ip) ?? []).filter((t) => t >= weekStart);
-  const tierLimit = WEEKLY_LIMIT[claimedTier];
-  // Effective cap: the smaller of what the client claims they're entitled
-  // to and the absolute server ceiling.
-  const limit = Math.min(tierLimit, WEEKLY_HARD_CAP);
-  if (fresh.length >= limit) {
+  if (fresh.length >= PRO_WEEKLY_LIMIT) {
     if (fresh.length === 0) weeklyHits.delete(ip);
     else weeklyHits.set(ip, fresh);
     return {
       ok: false,
       state: {
         used: fresh.length,
-        limit,
+        limit: PRO_WEEKLY_LIMIT,
         resetAt: weekStart + ONE_WEEK_MS,
       },
     };
@@ -157,7 +152,7 @@ function reserveWeeklySlot(
     ok: true,
     state: {
       used: fresh.length,
-      limit,
+      limit: PRO_WEEKLY_LIMIT,
       resetAt: weekStart + ONE_WEEK_MS,
     },
   };
@@ -168,7 +163,6 @@ function refundWeeklySlot(ip: string): void {
   const now = Date.now();
   const weekStart = getCurrentWeekStart(now);
   const fresh = (weeklyHits.get(ip) ?? []).filter((t) => t >= weekStart);
-  // Drop the most recent hit (the one we just reserved).
   if (fresh.length > 0) fresh.pop();
   if (fresh.length === 0) weeklyHits.delete(ip);
   else weeklyHits.set(ip, fresh);
@@ -188,7 +182,7 @@ const RequestSchema = z.object({
     .max(MAX_DATA_URI_LEN)
     .regex(DATA_URI_PATTERN, "expected data:image/<type>;base64,<...>"),
   photoDate: z.number().int().positive(),
-  tier: z.enum(["free", "premium"]).optional(),
+  isPro: z.boolean(),
 });
 
 const USER_PROMPT = `Analyze these fitness progress photos. Give short, practical gym-focused feedback.
@@ -211,16 +205,23 @@ router.post("/analyze-progress-photo", async (req, res) => {
     return;
   }
 
-  const { imageDataUri, photoDate, tier = "free" } = parsed.data;
+  if (parsed.data.isPro !== true) {
+    res.status(403).json({
+      error: "pro_required",
+      message: "Pro subscription required",
+    });
+    return;
+  }
+
+  const { imageDataUri, photoDate } = parsed.data;
 
   // Atomically reserve a weekly slot. This both checks AND consumes in the
   // same synchronous step so concurrent in-flight requests can't bypass the
   // cap. We refund the slot below if the OpenAI call itself fails.
-  const reservation = reserveWeeklySlot(ip, tier);
+  const reservation = reserveWeeklySlot(ip);
   if (!reservation.ok) {
     res.status(429).json({
       error: "weekly_limit_reached",
-      tier,
       limit: reservation.state.limit,
       used: reservation.state.used,
       resetAt: reservation.state.resetAt,
@@ -287,14 +288,13 @@ router.post("/analyze-progress-photo", async (req, res) => {
         : extracted;
 
     // Slot was reserved before the call; report the post-reserve state back.
-    const after = readWeeklyState(ip, tier);
+    const after = readWeeklyState(ip);
 
     res.json({
       analysis,
       analyzedAt: Date.now(),
       model: "gpt-5-mini",
       usage: {
-        tier,
         used: after.used,
         limit: after.limit,
         remaining: Math.max(0, after.limit - after.used),

@@ -20,6 +20,7 @@ import { WorkoutProvider } from "@/context/WorkoutContext";
 import { AiUsageProvider } from "@/lib/aiUsage";
 import { CustomScheduleProvider } from "@/lib/customSchedule";
 import { ExerciseImagesProvider } from "@/lib/exerciseImages";
+import { SubscriptionProvider } from "@/lib/subscription";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -126,10 +127,12 @@ export default function RootLayout() {
               <WorkoutProvider>
                 <CustomScheduleProvider>
                   <ExerciseImagesProvider>
-                    <AiUsageProvider>
-                      <StatusBar style="light" />
-                      <RootLayoutNav />
-                    </AiUsageProvider>
+                    <SubscriptionProvider>
+                      <AiUsageProvider>
+                        <StatusBar style="light" />
+                        <RootLayoutNav />
+                      </AiUsageProvider>
+                    </SubscriptionProvider>
                   </ExerciseImagesProvider>
                 </CustomScheduleProvider>
               </WorkoutProvider>

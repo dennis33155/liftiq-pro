@@ -63,7 +63,7 @@ type Ctx = {
   startSuggestedWorkout: (category: Category, count?: number) => Workout;
   startAiWorkout: (
     category: Category,
-    options?: { count?: number; notes?: string },
+    options: { count?: number; notes?: string; isPro: boolean },
   ) => Promise<{ workout: Workout; rationale: string }>;
   removeExerciseFromActive: (workoutExerciseId: string) => void;
   addSetToExercise: (workoutExerciseId: string) => void;
@@ -284,7 +284,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const startAiWorkout = useCallback(
     async (
       category: Category,
-      options?: { count?: number; notes?: string },
+      options: { count?: number; notes?: string; isPro: boolean },
     ): Promise<{ workout: Workout; rationale: string }> => {
       const pool = [...SEED_EXERCISES, ...customExercises];
       const excludeSet = new Set([
@@ -315,8 +315,9 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
       const result = await requestWorkoutSuggestion({
         category,
-        count: options?.count ?? 5,
-        notes: options?.notes,
+        count: options.count ?? 5,
+        notes: options.notes,
+        isPro: options.isPro,
         recentWorkouts: recent,
         availableExercises: available,
       });

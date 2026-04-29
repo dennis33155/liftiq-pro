@@ -50,6 +50,11 @@ const RequestSchema = z.object({
   category: z.string().min(1).max(40),
   count: z.number().int().min(2).max(10).optional(),
   notes: z.string().max(300).optional(),
+  // Pro entitlement claim (self-attested today). Server returns 403 when
+  // false. When real billing is wired, replace this client-supplied flag
+  // with a server-verified entitlement (signed token / authenticated /me
+  // lookup) before treating Pro as paid.
+  isPro: z.boolean(),
   recentWorkouts: z.array(RecentWorkoutSchema).max(10),
   availableExercises: z.array(AvailableExerciseSchema).min(1).max(150),
 });
@@ -104,6 +109,14 @@ router.post("/workout-suggestion", async (req, res) => {
     res.status(400).json({
       error: "invalid_request",
       details: parsed.error.flatten(),
+    });
+    return;
+  }
+
+  if (parsed.data.isPro !== true) {
+    res.status(403).json({
+      error: "pro_required",
+      message: "Pro subscription required",
     });
     return;
   }

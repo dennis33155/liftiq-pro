@@ -22,7 +22,12 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { useColors } from "@/hooks/useColors";
 import { useWorkout } from "@/context/WorkoutContext";
 import { useAiUsage, AI_LIMIT_MESSAGE } from "@/lib/aiUsage";
-import { requestPhotoAnalysis, WeeklyAiLimitError } from "@/lib/api";
+import {
+  ProRequiredError,
+  requestPhotoAnalysis,
+  WeeklyAiLimitError,
+} from "@/lib/api";
+import { useSubscription } from "@/lib/subscription";
 import {
   addProgressPhoto,
   deleteProgressPhoto,
@@ -123,6 +128,7 @@ export default function ProgressPhotosScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { workouts } = useWorkout();
+  const { isPro, ready: subReady, showUpgradePrompt } = useSubscription();
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -268,19 +274,18 @@ export default function ProgressPhotosScreen() {
   const ai = useAiUsage();
 
   const showLimitReached = useCallback(() => {
-    Alert.alert("Weekly AI limit", AI_LIMIT_MESSAGE, [
-      { text: "Not now", style: "cancel" },
-      {
-        text: "Upgrade",
-        onPress: () => router.push("/(tabs)/settings"),
-      },
-    ]);
+    // Pro-only path now. Free users never reach this — they're blocked
+    // upstream by the upgrade gate before any network call.
+    Alert.alert("Weekly AI limit", AI_LIMIT_MESSAGE, [{ text: "OK" }]);
   }, []);
 
   const runAnalysisFor = useCallback(
     async (photo: ProgressPhoto): Promise<ProgressPhoto[] | null> => {
-      // Client-side gate: stop before we even build the data URI or hit the
-      // network when the user is already at their weekly limit.
+      // Client-side gates: Pro required, then weekly cap.
+      if (!isPro) {
+        showUpgradePrompt();
+        return null;
+      }
       if (!ai.canUseNow()) {
         showLimitReached();
         return null;
@@ -290,7 +295,7 @@ export default function ProgressPhotosScreen() {
         const result = await requestPhotoAnalysis({
           imageDataUri: dataUri,
           photoDate: photo.date,
-          tier: ai.tier,
+          isPro,
         });
         // Only count successful calls — failed analyses do not consume budget.
         await ai.incrementUsage();
@@ -301,6 +306,10 @@ export default function ProgressPhotosScreen() {
         });
         return next;
       } catch (err) {
+        if (err instanceof ProRequiredError) {
+          showUpgradePrompt();
+          return null;
+        }
         if (err instanceof WeeklyAiLimitError) {
           showLimitReached();
           return null;
@@ -310,7 +319,7 @@ export default function ProgressPhotosScreen() {
         return null;
       }
     },
-    [ai, showLimitReached],
+    [ai, isPro, showLimitReached, showUpgradePrompt],
   );
 
   const handleAnalyzeSelected = useCallback(async () => {
@@ -427,7 +436,7 @@ export default function ProgressPhotosScreen() {
           />
         </View>
 
-        {photos.length > 0 ? (
+        {photos.length > 0 && subReady && isPro ? (
           <View style={styles.btnRow}>
             <PrimaryButton
               label={selectMode ? "Cancel" : "Select Photos to Analyze"}
@@ -446,7 +455,7 @@ export default function ProgressPhotosScreen() {
           </View>
         ) : null}
 
-        {selectMode ? (
+        {subReady && isPro && selectMode ? (
           <View
             style={[
               styles.selectBar,
@@ -490,57 +499,95 @@ export default function ProgressPhotosScreen() {
           </View>
         ) : null}
 
-        <View
-          style={[
-            styles.disclaimer,
-            { borderColor: colors.border, backgroundColor: colors.muted },
-          ]}
-        >
-          <Feather name="info" size={12} color={colors.mutedForeground} />
-          <Text
-            style={[styles.disclaimerText, { color: colors.mutedForeground }]}
-          >
-            Photos are analyzed only when you tap Analyze Photos.
-          </Text>
-        </View>
-
-        <Pressable
-          onPress={() => router.push("/(tabs)/settings")}
-          style={({ pressed }) => [
-            styles.usageBadge,
-            {
-              borderColor:
-                ai.remaining === 0 ? colors.destructive : colors.border,
-              backgroundColor: colors.card,
-              opacity: pressed ? 0.7 : 1,
-            },
-          ]}
-        >
-          <Feather
-            name={ai.remaining === 0 ? "alert-circle" : "zap"}
-            size={14}
-            color={
-              ai.remaining === 0 ? colors.destructive : colors.primary
-            }
-          />
-          <Text
-            style={[styles.usageBadgeText, { color: colors.foreground }]}
-          >
-            AI {ai.tier === "premium" ? "Premium" : "Free"}
-            {"  \u00B7  "}
-            {ai.used}/{ai.limit} this week
-          </Text>
-          {ai.tier === "free" ? (
-            <Text
+        {!subReady ? null : isPro ? (
+          <>
+            <View
               style={[
-                styles.usageBadgeUpgrade,
-                { color: colors.primary },
+                styles.disclaimer,
+                { borderColor: colors.border, backgroundColor: colors.muted },
               ]}
             >
-              Upgrade
-            </Text>
-          ) : null}
-        </Pressable>
+              <Feather
+                name="info"
+                size={12}
+                color={colors.mutedForeground}
+              />
+              <Text
+                style={[
+                  styles.disclaimerText,
+                  { color: colors.mutedForeground },
+                ]}
+              >
+                Photos are analyzed only when you tap Analyze Photos.
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.usageBadge,
+                {
+                  borderColor:
+                    ai.remaining === 0 ? colors.destructive : colors.border,
+                  backgroundColor: colors.card,
+                },
+              ]}
+            >
+              <Feather
+                name={ai.remaining === 0 ? "alert-circle" : "zap"}
+                size={14}
+                color={
+                  ai.remaining === 0 ? colors.destructive : colors.primary
+                }
+              />
+              <Text
+                style={[styles.usageBadgeText, { color: colors.foreground }]}
+              >
+                AI Pro
+                {"  \u00B7  "}
+                {ai.used}/{ai.limit} this week
+              </Text>
+            </View>
+          </>
+        ) : (
+          <Pressable
+            onPress={showUpgradePrompt}
+            style={({ pressed }) => [
+              styles.lockedCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.primary,
+                borderRadius: colors.radius,
+                opacity: pressed ? 0.75 : 1,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.lockedIconWrap,
+                { backgroundColor: colors.primary + "22" },
+              ]}
+            >
+              <Feather name="lock" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[styles.lockedTitle, { color: colors.foreground }]}
+              >
+                Unlock AI Photo Analysis
+              </Text>
+              <Text
+                style={[styles.lockedSub, { color: colors.mutedForeground }]}
+              >
+                Pro members get AI-powered critiques on every progress shot.
+              </Text>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.mutedForeground}
+            />
+          </Pressable>
+        )}
 
         {loaded ? (
           <View
@@ -762,7 +809,7 @@ export default function ProgressPhotosScreen() {
                       )}
                     </Text>
                   </View>
-                ) : (
+                ) : isPro ? (
                   <PrimaryButton
                     label={
                       viewerAnalyzing ? "Analyzing..." : "Analyze This Photo"
@@ -775,6 +822,17 @@ export default function ProgressPhotosScreen() {
                       ) : (
                         <Feather name="zap" size={16} color="#ffffff" />
                       )
+                    }
+                  />
+                ) : (
+                  <PrimaryButton
+                    label="Upgrade to Analyze"
+                    onPress={() => {
+                      setViewing(null);
+                      showUpgradePrompt();
+                    }}
+                    icon={
+                      <Feather name="lock" size={16} color="#ffffff" />
                     }
                   />
                 )}
@@ -825,6 +883,31 @@ const styles = StyleSheet.create({
   usageBadgeUpgrade: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 12,
+  },
+  lockedCard: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  lockedIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  lockedSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
   },
   disclaimer: {
     flexDirection: "row",
