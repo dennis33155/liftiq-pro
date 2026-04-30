@@ -56,7 +56,16 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "expo-asset": "~12.0.13",
     "expo-audio": "~1.1.1",
     "expo-file-system": "~19.0.22"
+  },
+  "codegenConfig": {
+    "name": "GymLogSpec",
+    "type": "modules",
+    "jsSrcsDir": "./src",
+    "android": {
+      "javaPackageName": "com.anonymous.gymlog"
+    }
   }
 }
