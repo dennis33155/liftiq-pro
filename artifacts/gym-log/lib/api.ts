@@ -250,11 +250,30 @@ export async function requestPhotoAnalysis(
   input: AnalyzeProgressPhotoRequest,
 ): Promise<AnalyzeProgressPhotoResponse> {
   const url = getApiBaseUrl() + "/analyze-progress-photo";
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  // [DIAG] Temporary: log outgoing request size and target URL.
+  if (__DEV__) {
+    console.log(
+      "[api] POST",
+      url,
+      "imageBytes=",
+      input.imageDataUri.length,
+    );
+  }
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch (networkErr) {
+    // [DIAG] Temporary: surface network-level failures (DNS/TLS/timeout) with the URL.
+    const m =
+      networkErr instanceof Error ? networkErr.message : String(networkErr);
+    throw new Error(
+      "Photo analysis network error (" + m + ") — URL: " + url,
+    );
+  }
   if (!res.ok) {
     const body = await readErrorBody(res);
     if (res.status === 403 && isProRequired(body)) {
@@ -284,11 +303,28 @@ export async function requestPhotoAnalysis(
         message: b.message,
       });
     }
-    const detail =
+    // [DIAG] Temporary: include HTTP status, backend error code, and
+    // backend message text so the in-app alert shows the real failure.
+    const errCode =
       body && typeof body === "object" && "error" in body
         ? String((body as { error: unknown }).error)
         : "request_failed";
-    throw new Error("Photo analysis failed: " + detail);
+    const errMsg =
+      body && typeof body === "object" && "message" in body
+        ? String((body as { message: unknown }).message)
+        : "";
+    const upstream =
+      body && typeof body === "object" && "upstreamStatus" in body
+        ? " upstream=" + String((body as { upstreamStatus: unknown }).upstreamStatus)
+        : "";
+    throw new Error(
+      "HTTP " +
+        res.status +
+        " " +
+        errCode +
+        upstream +
+        (errMsg ? ": " + errMsg : ""),
+    );
   }
   return (await res.json()) as AnalyzeProgressPhotoResponse;
 }

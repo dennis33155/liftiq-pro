@@ -208,16 +208,51 @@ Keep it concise and motivating. No medical advice.`;
 router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) => {
   const ip = req.ip ?? "unknown";
 
+  // [DIAG] Step 1: confirm the request reached Replit and inspect payload shape.
+  const bodyKeys =
+    req.body && typeof req.body === "object" ? Object.keys(req.body) : [];
+  const rawImg =
+    req.body && typeof req.body === "object"
+      ? (req.body as { imageDataUri?: unknown }).imageDataUri
+      : undefined;
+  const imageFieldType = typeof rawImg;
+  const imageFieldLength = typeof rawImg === "string" ? rawImg.length : 0;
+  const imageFieldPrefix =
+    typeof rawImg === "string" ? rawImg.slice(0, 32) : null;
+  req.log.info(
+    {
+      diag: "photo_analysis_request_received",
+      ip,
+      contentLength: req.headers["content-length"] ?? null,
+      contentType: req.headers["content-type"] ?? null,
+      bodyKeys,
+      imageFieldName: "imageDataUri",
+      imageFieldType,
+      imageFieldLength,
+      imageFieldPrefix,
+    },
+    "[DIAG] /analyze-progress-photo: request received",
+  );
+
   const parsed = RequestSchema.safeParse(req.body);
   if (!parsed.success) {
+    const flat = parsed.error.flatten();
+    req.log.warn(
+      { diag: "photo_analysis_invalid_request", details: flat, status: 400 },
+      "[DIAG] /analyze-progress-photo: rejected by schema",
+    );
     res.status(400).json({
       error: "invalid_request",
-      details: parsed.error.flatten(),
+      details: flat,
     });
     return;
   }
 
   if (parsed.data.isPro !== true) {
+    req.log.info(
+      { diag: "photo_analysis_pro_required", status: 403 },
+      "[DIAG] /analyze-progress-photo: not Pro",
+    );
     res.status(403).json({
       error: "pro_required",
       message: "Pro subscription required",
@@ -232,6 +267,15 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
   // cap. We refund the slot below if the OpenAI call itself fails.
   const reservation = reserveWeeklySlot(ip);
   if (!reservation.ok) {
+    req.log.info(
+      {
+        diag: "photo_analysis_weekly_limit",
+        used: reservation.state.used,
+        limit: reservation.state.limit,
+        status: 429,
+      },
+      "[DIAG] /analyze-progress-photo: weekly limit reached",
+    );
     res.status(429).json({
       error: "weekly_limit_reached",
       limit: reservation.state.limit,
@@ -243,10 +287,24 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
   }
 
   const apiKey = process.env["OPENAI_API_KEY"];
+  // [DIAG] Step 2: confirm OPENAI_API_KEY is loaded (never log the value).
+  req.log.info(
+    {
+      diag: "photo_analysis_api_key_check",
+      apiKeyLoaded: !!apiKey,
+      apiKeyLength: apiKey ? apiKey.length : 0,
+    },
+    "[DIAG] /analyze-progress-photo: OPENAI_API_KEY check",
+  );
   if (!apiKey) {
-    req.log.error("OPENAI_API_KEY env var missing");
+    req.log.error(
+      { diag: "photo_analysis_no_key", status: 500 },
+      "[DIAG] /analyze-progress-photo: OPENAI_API_KEY env var missing",
+    );
     refundWeeklySlot(ip);
-    res.status(500).json({ error: "ai_not_configured" });
+    res
+      .status(500)
+      .json({ error: "ai_not_configured", message: "OPENAI_API_KEY missing on server" });
     return;
   }
 
@@ -254,6 +312,17 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
 
   void photoDate;
 
+  // [DIAG] Step 3: about to call OpenAI.
+  req.log.info(
+    {
+      diag: "photo_analysis_openai_call_start",
+      model: "gpt-5-mini",
+      imageBytes: imageDataUri.length,
+    },
+    "[DIAG] /analyze-progress-photo: calling OpenAI",
+  );
+
+  const tStart = Date.now();
   try {
     const response = await client.responses.create({
       model: "gpt-5-mini",
@@ -273,7 +342,11 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
       ],
     });
 
+    const elapsedMs = Date.now() - tStart;
     let extracted = (response.output_text ?? "").trim();
+    let extractedFrom: "output_text" | "output_array" | "none" =
+      extracted.length > 0 ? "output_text" : "none";
+
     if (extracted.length === 0) {
       const outputs = (response as { output?: unknown }).output;
       if (Array.isArray(outputs) && outputs.length > 0) {
@@ -283,14 +356,46 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
           const block = content[0] as { text?: unknown } | undefined;
           if (block && typeof block.text === "string") {
             extracted = block.text.trim();
+            if (extracted.length > 0) extractedFrom = "output_array";
           }
         }
       }
     }
 
+    // [DIAG] Step 4: OpenAI returned. Log shape so we can see why it might be empty.
+    req.log.info(
+      {
+        diag: "photo_analysis_openai_call_ok",
+        elapsedMs,
+        model: (response as { model?: unknown }).model ?? null,
+        responseId: (response as { id?: unknown }).id ?? null,
+        outputTextLen: (response.output_text ?? "").length,
+        extractedLen: extracted.length,
+        extractedFrom,
+        usage: (response as { usage?: unknown }).usage ?? null,
+      },
+      "[DIAG] /analyze-progress-photo: OpenAI responded",
+    );
+
     if (extracted.length === 0) {
-      req.log.warn({ response }, "OpenAI returned no text in either path");
-      extracted = "Could not analyze photo. Try again.";
+      // Previously this silently returned the literal string
+      // "Could not analyze photo. Try again." as if it were the analysis,
+      // hiding the real failure. Now we log the full response shape AND
+      // return a real error so the client can surface what happened.
+      req.log.error(
+        {
+          diag: "photo_analysis_empty_response",
+          response,
+          status: 502,
+        },
+        "[DIAG] /analyze-progress-photo: OpenAI returned no text",
+      );
+      refundWeeklySlot(ip);
+      res.status(502).json({
+        error: "ai_empty_response",
+        message: "OpenAI returned no text. Try again.",
+      });
+      return;
     }
 
     const analysis =
@@ -300,6 +405,18 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
 
     // Slot was reserved before the call; report the post-reserve state back.
     const after = readWeeklyState(ip);
+
+    // [DIAG] Step 5: response status sent back to the app.
+    req.log.info(
+      {
+        diag: "photo_analysis_response_sent",
+        status: 200,
+        analysisLen: analysis.length,
+        weeklyUsed: after.used,
+        weeklyLimit: after.limit,
+      },
+      "[DIAG] /analyze-progress-photo: 200 OK",
+    );
 
     res.json({
       analysis,
@@ -313,10 +430,44 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
       },
     });
   } catch (err) {
-    req.log.error({ err }, "OpenAI photo analysis call failed");
+    const elapsedMs = Date.now() - tStart;
+    // [DIAG] Step 3b: capture the exact OpenAI error so we can see what failed.
+    const e = err as {
+      name?: string;
+      message?: string;
+      status?: number;
+      code?: string | number;
+      type?: string;
+      error?: unknown;
+      response?: { status?: number; data?: unknown };
+    };
+    req.log.error(
+      {
+        diag: "photo_analysis_openai_call_failed",
+        elapsedMs,
+        errName: e?.name ?? null,
+        errMessage: e?.message ?? null,
+        errStatus: e?.status ?? e?.response?.status ?? null,
+        errCode: e?.code ?? null,
+        errType: e?.type ?? null,
+        errBody: e?.error ?? e?.response?.data ?? null,
+        err,
+        status: 502,
+      },
+      "[DIAG] /analyze-progress-photo: OpenAI call threw",
+    );
     // Refund the reserved slot — the user shouldn't lose budget to a 502.
     refundWeeklySlot(ip);
-    res.status(502).json({ error: "ai_call_failed" });
+    const upstreamMsg =
+      typeof e?.message === "string" && e.message.length > 0
+        ? e.message
+        : "Upstream AI call failed";
+    res.status(502).json({
+      error: "ai_call_failed",
+      message: upstreamMsg,
+      upstreamStatus: e?.status ?? e?.response?.status ?? null,
+      upstreamCode: e?.code ?? null,
+    });
   }
 });
 
