@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "AI Fitness Trainer Pro",
+    "slug": "gym-log",
+    "version": "1.0.0", 
+"icon": "./assets/icon.png",
+    "orientation": "portrait",
+    "scheme": "gym-log",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dennis33155.gymlog",
+"icon": "./assets/icon.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "AI Fitness Trainer Pro uses the camera so you can take progress and exercise photos.",
+        "NSPhotoLibraryUsageDescription": "AI Fitness Trainer Pro uses your photo library so you can choose progress and exercise photos.",
+        "NSPhotoLibraryAddUsageDescription": "AI Fitness Trainer Pro saves selected workout photos to your library when you choose to export or save them."
+      }
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      "expo-audio",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8845040e-53cd-4416-a31c-3afd7098818f"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8845040e-53cd-4416-a31c-3afd7098818f"
+      }
+    },
+    "android": {
+      "package": "com.dennis33155.gymlog"
+    }
+  }
+}

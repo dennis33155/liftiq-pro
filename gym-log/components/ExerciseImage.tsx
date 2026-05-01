@@ -1,0 +1,195 @@
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+
+import { useColors } from "@/hooks/useColors";
+import { useExerciseImage } from "@/lib/exerciseImages";
+import type { Category, Exercise } from "@/lib/types";
+
+type Props = {
+  size?: number;
+  exercise?: Pick<Exercise, "id" | "category" | "equipment" | "imageUrl"> | null;
+  large?: boolean;
+  /** When `large`, render the image fitted (contain) instead of cropped. */
+  contain?: boolean;
+  /** When `large` and showing a placeholder, render the placeholder caption. */
+  showPlaceholderCaption?: boolean;
+};
+
+const CATEGORY_GRADIENT: Record<Category, [string, string]> = {
+  Chest: ["#1e3a8a", "#2979FF"],
+  Back: ["#0e2a47", "#1d4ed8"],
+  Arms: ["#1e293b", "#3b82f6"],
+  Shoulders: ["#0f172a", "#0ea5e9"],
+  Legs: ["#172554", "#2563eb"],
+  "Full Body": ["#1f2937", "#3b82f6"],
+};
+
+type IconKind = "barbell" | "dumbbell" | "cable" | "machine" | "body";
+
+function pickIcon(equipment: string | undefined): IconKind {
+  if (!equipment) return "machine";
+  const e = equipment.toLowerCase();
+  if (e.includes("barbell")) return "barbell";
+  if (e.includes("dumbbell") || e.includes("kettlebell")) return "dumbbell";
+  if (e.includes("cable") || e.includes("rope")) return "cable";
+  if (
+    e.includes("body") ||
+    e.includes("none") ||
+    e.includes("self") ||
+    e.includes("pull-up bar") ||
+    e.includes("dip")
+  )
+    return "body";
+  return "machine";
+}
+
+function IconForKind({ kind, size }: { kind: IconKind; size: number }) {
+  const color = "#fafafa";
+  switch (kind) {
+    case "barbell":
+      return (
+        <MaterialCommunityIcons name="weight-lifter" size={size} color={color} />
+      );
+    case "dumbbell":
+      return (
+        <MaterialCommunityIcons name="dumbbell" size={size} color={color} />
+      );
+    case "cable":
+      return <Feather name="zap" size={size * 0.85} color={color} />;
+    case "body":
+      return (
+        <MaterialCommunityIcons name="human-handsup" size={size} color={color} />
+      );
+    case "machine":
+    default:
+      return (
+        <MaterialCommunityIcons name="cog-outline" size={size} color={color} />
+      );
+  }
+}
+
+export function ExerciseImage({
+  size = 44,
+  exercise,
+  large = false,
+  contain = false,
+  showPlaceholderCaption = false,
+}: Props) {
+  const colors = useColors();
+  const [imgFailed, setImgFailed] = React.useState(false);
+  const category = exercise?.category;
+  const gradient: [string, string] = category
+    ? CATEGORY_GRADIENT[category]
+    : [colors.accent, colors.accent];
+
+  const resolvedUrl = useExerciseImage(exercise?.id, exercise?.imageUrl);
+
+  React.useEffect(() => {
+    setImgFailed(false);
+  }, [resolvedUrl]);
+
+  if (resolvedUrl && !imgFailed) {
+    return (
+      <ExpoImage
+        source={{ uri: resolvedUrl }}
+        onError={() => setImgFailed(true)}
+        style={
+          large
+            ? {
+                width: "100%",
+                height: 240,
+                borderRadius: 16,
+                backgroundColor: "#000",
+              }
+            : {
+                width: size,
+                height: size,
+                borderRadius: 12,
+                backgroundColor: colors.accent,
+              }
+        }
+        contentFit={large && contain ? "contain" : "cover"}
+        cachePolicy="memory-disk"
+        transition={150}
+      />
+    );
+  }
+
+  if (large) {
+    const iconSize = 96;
+    const caption = imgFailed ? "Image unavailable" : "Image coming soon";
+    return (
+      <View
+        style={[
+          styles.large,
+          { borderColor: colors.border, backgroundColor: gradient[0] },
+        ]}
+      >
+        <LinearGradient
+          colors={gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <IconForKind kind={pickIcon(exercise?.equipment)} size={iconSize} />
+        {showPlaceholderCaption ? (
+          <Text style={styles.placeholderCaption}>{caption}</Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  const iconSize = Math.round(size * 0.55);
+  return (
+    <View
+      style={[
+        styles.wrap,
+        {
+          width: size,
+          height: size,
+          borderRadius: 12,
+          borderColor: colors.border,
+          backgroundColor: gradient[0],
+        },
+      ]}
+    >
+      <LinearGradient
+        colors={gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[StyleSheet.absoluteFill, { borderRadius: 12 }]}
+      />
+      <IconForKind kind={pickIcon(exercise?.equipment)} size={iconSize} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  large: {
+    width: "100%",
+    height: 240,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  placeholderCaption: {
+    marginTop: 14,
+    color: "#fafafa",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    letterSpacing: 0.4,
+    opacity: 0.92,
+  },
+});
