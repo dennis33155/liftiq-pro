@@ -183,95 +183,76 @@ export default function HomeScreen() {
       {active ? (
         <Pressable
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push("/workout");
           }}
+          accessibilityLabel={`Resume in-progress ${active.category} workout`}
           style={({ pressed }) => [
-            styles.activeCard,
+            styles.resumePill,
             {
-              backgroundColor: colors.primary,
-              borderRadius: colors.radius + 4,
-              opacity: pressed ? 0.9 : 1,
-              transform: [{ scale: pressed ? 0.99 : 1 }],
+              backgroundColor: colors.accent,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+              opacity: pressed ? 0.85 : 1,
             },
           ]}
         >
-          <View style={styles.activeRow}>
-            <View
-              style={[
-                styles.activeDot,
-                { backgroundColor: colors.primaryForeground },
-              ]}
-            />
-            <Text
-              style={[
-                styles.activeLabel,
-                { color: colors.primaryForeground },
-              ]}
-            >
-              ACTIVE WORKOUT
-            </Text>
-          </View>
-          <Text
-            style={[styles.activeTitle, { color: colors.primaryForeground }]}
-          >
-            {active.category}
-          </Text>
-          <View style={styles.activeMeta}>
-            <Text
-              style={[
-                styles.activeMetaText,
-                { color: colors.primaryForeground, opacity: 0.85 },
-              ]}
-            >
-              {active.exercises.length}{" "}
-              {active.exercises.length === 1 ? "exercise" : "exercises"}{" "}
-              {"\u00B7"} started {formatRelative(active.startedAt).toLowerCase()}
-            </Text>
-            <Feather
-              name="arrow-right"
-              size={20}
-              color={colors.primaryForeground}
-            />
-          </View>
-        </Pressable>
-      ) : (
-        <>
-          <TodayCard
-            slot={today}
-            onStart={() => {
-              if (today.category) handleStart(today.category);
-            }}
-            onSuggest={() => {
-              if (today.category) handleSuggest(today.category);
-            }}
-            onAi={() => {
-              if (today.category) handleAiOpen(today.category);
-            }}
+          <View
+            style={[styles.resumeDot, { backgroundColor: colors.primary }]}
           />
-          <View style={styles.statRow}>
-            <StatTile
-              label="Today"
-              value={todaysCount.toString()}
-              sub={todaysCount === 1 ? "session" : "sessions"}
-            />
-            <StatTile
-              label="Last Lift"
-              value={
-                lastWorkout
-                  ? Math.round(workoutVolume(lastWorkout)).toLocaleString()
-                  : "0"
-              }
-              sub="lb volume"
-            />
-            <StatTile
-              label="Total"
-              value={workouts.length.toString()}
-              sub="workouts"
-            />
-          </View>
-        </>
-      )}
+          <Text
+            style={[styles.resumePillText, { color: colors.foreground }]}
+            numberOfLines={1}
+          >
+            Resume {active.category}
+            <Text style={{ color: colors.mutedForeground }}>
+              {"  \u00B7  "}
+              {active.exercises.length}{" "}
+              {active.exercises.length === 1 ? "exercise" : "exercises"}
+              {"  \u00B7  "}
+              started {formatRelative(active.startedAt).toLowerCase()}
+            </Text>
+          </Text>
+          <Feather
+            name="arrow-right"
+            size={16}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+      ) : null}
+      <TodayCard
+        slot={today}
+        onStart={() => {
+          if (today.category) handleStart(today.category);
+        }}
+        onSuggest={() => {
+          if (today.category) handleSuggest(today.category);
+        }}
+        onAi={() => {
+          if (today.category) handleAiOpen(today.category);
+        }}
+      />
+      <View style={styles.statRow}>
+        <StatTile
+          label="Today"
+          value={todaysCount.toString()}
+          sub={todaysCount === 1 ? "session" : "sessions"}
+        />
+        <StatTile
+          label="Last Lift"
+          value={
+            lastWorkout
+              ? Math.round(workoutVolume(lastWorkout)).toLocaleString()
+              : "0"
+          }
+          sub="lb volume"
+        />
+        <StatTile
+          label="Total"
+          value={workouts.length.toString()}
+          sub="workouts"
+        />
+      </View>
 
       <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
         WEEKLY SPLIT
@@ -809,39 +790,24 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     marginLeft: 2,
   },
-  activeCard: {
-    marginHorizontal: 20,
-    padding: 20,
-    marginBottom: 24,
-  },
-  activeRow: {
+  resumePill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
+    gap: 10,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
   },
-  activeDot: {
+  resumeDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-  activeLabel: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 11,
-    letterSpacing: 1.5,
-  },
-  activeTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  activeMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  activeMetaText: {
-    fontFamily: "Inter_500Medium",
+  resumePillText: {
+    flex: 1,
+    fontFamily: "Inter_600SemiBold",
     fontSize: 13,
   },
   statRow: {
