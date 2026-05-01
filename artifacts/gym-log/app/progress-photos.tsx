@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { Image as ExpoImage } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
+import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -141,6 +143,7 @@ export default function ProgressPhotosScreen() {
     total: number;
   } | null>(null);
   const [viewerAnalyzing, setViewerAnalyzing] = useState(false);
+  const [analysisSpeechActive, setAnalysisSpeechActive] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -158,6 +161,17 @@ export default function ProgressPhotosScreen() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      Speech.stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    Speech.stop();
+    setAnalysisSpeechActive(false);
+  }, [viewing?.id]);
 
   const handlePick = useCallback(async () => {
     if (adding) return;
@@ -369,6 +383,32 @@ export default function ProgressPhotosScreen() {
       setViewerAnalyzing(false);
     }
   }, [runAnalysisFor, viewing, viewerAnalyzing]);
+
+  const handleCopyAnalysisText = useCallback(async (text: string) => {
+    try {
+      await Clipboard.setStringAsync(text);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+        () => {},
+      );
+    } catch {
+      Alert.alert("Could not copy", "Clipboard is not available.");
+    }
+  }, []);
+
+  const handleReadAnalysisAloud = useCallback((text: string) => {
+    Speech.stop();
+    setAnalysisSpeechActive(true);
+    Speech.speak(text, {
+      onDone: () => setAnalysisSpeechActive(false),
+      onStopped: () => setAnalysisSpeechActive(false),
+      onError: () => setAnalysisSpeechActive(false),
+    });
+  }, []);
+
+  const handleStopAnalysisSpeech = useCallback(() => {
+    Speech.stop();
+    setAnalysisSpeechActive(false);
+  }, []);
 
   const groups = useMemo(() => groupByDay(photos), [photos]);
   const coachComment = useMemo(
@@ -793,6 +833,55 @@ export default function ProgressPhotosScreen() {
                         AI COACH ANALYSIS
                       </Text>
                     </View>
+                    <View style={styles.analysisActionsRow}>
+                      <Pressable
+                        onPress={() => {
+                          void handleCopyAnalysisText(viewing.analysis.text);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Copy AI analysis to clipboard"
+                        style={({ pressed }) => [
+                          styles.analysisActionPill,
+                          { opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <Feather name="copy" size={14} color="#fafafa" />
+                        <Text style={styles.analysisActionText}>Copy</Text>
+                      </Pressable>
+                      {analysisSpeechActive ? (
+                        <Pressable
+                          onPress={handleStopAnalysisSpeech}
+                          accessibilityRole="button"
+                          accessibilityLabel="Stop reading AI analysis"
+                          style={({ pressed }) => [
+                            styles.analysisActionPill,
+                            { opacity: pressed ? 0.7 : 1 },
+                          ]}
+                        >
+                          <Feather name="square" size={14} color="#fafafa" />
+                          <Text style={styles.analysisActionText}>
+                            Stop Reading
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          onPress={() =>
+                            handleReadAnalysisAloud(viewing.analysis.text)
+                          }
+                          accessibilityRole="button"
+                          accessibilityLabel="Read AI analysis aloud"
+                          style={({ pressed }) => [
+                            styles.analysisActionPill,
+                            { opacity: pressed ? 0.7 : 1 },
+                          ]}
+                        >
+                          <Feather name="volume-2" size={14} color="#fafafa" />
+                          <Text style={styles.analysisActionText}>
+                            Read Aloud
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
                     <Text style={styles.analysisBody}>
                       {viewing.analysis.text}
                     </Text>
@@ -1071,6 +1160,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+  analysisActionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  analysisActionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(20,20,22,0.78)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  analysisActionText: {
+    color: "#fafafa",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
   analysisLabel: {
     color: "#2979FF",

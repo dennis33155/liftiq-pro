@@ -1,4 +1,4 @@
-const DEFAULT_PROD_DOMAIN = "gym-log-fast.replit.app";
+const DEFAULT_PROD_DOMAIN = "liftiq-api.onrender.com";
 
 let cachedBaseUrl: string | null = null;
 
