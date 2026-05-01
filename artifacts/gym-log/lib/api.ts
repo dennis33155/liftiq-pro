@@ -1,11 +1,20 @@
 export function getApiBaseUrl(): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (!domain) {
+  const raw = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!raw) {
     throw new Error(
       "EXPO_PUBLIC_DOMAIN is not configured; cannot reach API server.",
     );
   }
-  return "https://" + domain;
+  const host = raw
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+  if (!host) {
+    throw new Error(
+      "EXPO_PUBLIC_DOMAIN is empty after normalization; cannot reach API server.",
+    );
+  }
+  return "https://" + host;
 }
 
 /**
