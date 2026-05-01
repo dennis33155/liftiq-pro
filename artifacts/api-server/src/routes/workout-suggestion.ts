@@ -1,7 +1,7 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import express from "express";
 import { z } from "zod";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
 const router: IRouter = Router();
 
@@ -134,15 +134,14 @@ router.post("/workout-suggestion", ipRateLimit, parseBody, async (req, res) => {
   const { category, count, notes, recentWorkouts, availableExercises } =
     parsed.data;
 
-  const baseURL = process.env["AI_INTEGRATIONS_ANTHROPIC_BASE_URL"];
-  const apiKey = process.env["AI_INTEGRATIONS_ANTHROPIC_API_KEY"];
-  if (!baseURL || !apiKey) {
-    req.log.error("Anthropic AI integration env vars missing");
+  const apiKey = process.env["OPENAI_API_KEY"];
+  if (!apiKey) {
+    req.log.error("OPENAI_API_KEY env var missing");
     res.status(500).json({ error: "ai_not_configured" });
     return;
   }
 
-  const client = new Anthropic({ baseURL, apiKey });
+  const client = new OpenAI({ apiKey });
 
   const validIds = new Set(availableExercises.map((e) => e.id));
   const targetCount = count ?? 5;
@@ -197,21 +196,23 @@ router.post("/workout-suggestion", ipRateLimit, parseBody, async (req, res) => {
   }
 
   try {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-5",
-      max_tokens: 1500,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userText }],
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 1500,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userText },
+      ],
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      req.log.error({ response }, "Anthropic returned no text block");
+    const raw = (response.choices[0]?.message?.content ?? "").trim();
+    if (raw.length === 0) {
+      req.log.error({ response }, "OpenAI returned no text");
       res.status(502).json({ error: "ai_no_text" });
       return;
     }
 
-    const raw = textBlock.text.trim();
     const jsonText = extractJson(raw);
     let suggestion: Suggestion;
     try {
@@ -238,7 +239,7 @@ router.post("/workout-suggestion", ipRateLimit, parseBody, async (req, res) => {
       createdAt: Date.now(),
     });
   } catch (err) {
-    req.log.error({ err }, "Anthropic call failed");
+    req.log.error({ err }, "OpenAI call failed");
     res.status(502).json({ error: "ai_call_failed" });
   }
 });

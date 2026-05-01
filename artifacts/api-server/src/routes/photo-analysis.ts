@@ -242,16 +242,15 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
     return;
   }
 
-  const baseURL = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
-  const apiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
-  if (!baseURL || !apiKey) {
-    req.log.error("OpenAI AI integration env vars missing");
+  const apiKey = process.env["OPENAI_API_KEY"];
+  if (!apiKey) {
+    req.log.error("OPENAI_API_KEY env var missing");
     refundWeeklySlot(ip);
     res.status(500).json({ error: "ai_not_configured" });
     return;
   }
 
-  const client = new OpenAI({ baseURL, apiKey });
+  const client = new OpenAI({ apiKey });
 
   void photoDate;
 
