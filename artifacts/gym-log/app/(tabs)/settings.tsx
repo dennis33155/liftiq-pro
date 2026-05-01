@@ -407,7 +407,7 @@ export default function SettingsScreen() {
       </Pressable>
 
       <Text style={[styles.footer, { color: colors.mutedForeground }]}>
-        Gym Log {"\u00B7"} All data lives on this device
+        AI Fitness Trainer Pro {"\u00B7"} All data lives on this device
       </Text>
     </ScrollView>
   );

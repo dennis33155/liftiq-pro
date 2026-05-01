@@ -158,7 +158,7 @@ export default function HomeScreen() {
             {greeting()}
           </Text>
           <Text style={[styles.appName, { color: colors.foreground }]}>
-            Gym Log
+            AI Fitness Trainer Pro
           </Text>
           <LiveDateTime variant="row" align="left" style={{ marginTop: 6 }} />
         </View>
