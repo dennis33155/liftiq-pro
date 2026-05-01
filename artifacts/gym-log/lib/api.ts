@@ -1,20 +1,24 @@
+const DEFAULT_PROD_DOMAIN = "gym-log-fast.replit.app";
+
+let cachedBaseUrl: string | null = null;
+
 export function getApiBaseUrl(): string {
-  const raw = process.env.EXPO_PUBLIC_DOMAIN;
-  if (!raw) {
-    throw new Error(
-      "EXPO_PUBLIC_DOMAIN is not configured; cannot reach API server.",
-    );
-  }
+  if (cachedBaseUrl) return cachedBaseUrl;
+
+  const raw = process.env.EXPO_PUBLIC_DOMAIN ?? DEFAULT_PROD_DOMAIN;
   const host = raw
     .trim()
     .replace(/^https?:\/\//i, "")
     .replace(/\/+$/, "");
-  if (!host) {
-    throw new Error(
-      "EXPO_PUBLIC_DOMAIN is empty after normalization; cannot reach API server.",
-    );
+  const safeHost = host || DEFAULT_PROD_DOMAIN;
+
+  cachedBaseUrl = "https://" + safeHost + "/api";
+
+  if (__DEV__) {
+    console.log("[api] base URL:", cachedBaseUrl);
   }
-  return "https://" + host;
+
+  return cachedBaseUrl;
 }
 
 /**
@@ -81,7 +85,7 @@ export type WorkoutSuggestionRequest = {
 export async function requestWorkoutSuggestion(
   input: WorkoutSuggestionRequest,
 ): Promise<WorkoutSuggestionResponse> {
-  const url = getApiBaseUrl() + "/api/workout-suggestion";
+  const url = getApiBaseUrl() + "/workout-suggestion";
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -178,7 +182,7 @@ export type CoachResponse = {
 export async function requestCoachRecommendations(
   input: CoachRequest,
 ): Promise<CoachResponse> {
-  const url = getApiBaseUrl() + "/api/coach";
+  const url = getApiBaseUrl() + "/coach";
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -245,7 +249,7 @@ export class WeeklyAiLimitError extends Error {
 export async function requestPhotoAnalysis(
   input: AnalyzeProgressPhotoRequest,
 ): Promise<AnalyzeProgressPhotoResponse> {
-  const url = getApiBaseUrl() + "/api/analyze-progress-photo";
+  const url = getApiBaseUrl() + "/analyze-progress-photo";
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
