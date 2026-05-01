@@ -316,7 +316,7 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
   req.log.info(
     {
       diag: "photo_analysis_openai_call_start",
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       imageBytes: imageDataUri.length,
     },
     "[DIAG] /analyze-progress-photo: calling OpenAI",
@@ -325,7 +325,7 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
   const tStart = Date.now();
   try {
     const response = await client.responses.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       max_output_tokens: 400,
       input: [
         {
@@ -421,7 +421,7 @@ router.post("/analyze-progress-photo", ipRateLimit, parseBody, async (req, res) 
     res.json({
       analysis,
       analyzedAt: Date.now(),
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       usage: {
         used: after.used,
         limit: after.limit,
