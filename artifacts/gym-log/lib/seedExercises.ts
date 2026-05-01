@@ -299,7 +299,7 @@ export const SEED_EXERCISES: Exercise[] = [
     ],
     preparation: "Brace one knee and hand on bench, hinge flat back.",
     execution: "Row dumbbell to hip, elbow tracks back. Lower fully.",
-    tip: "Build 40 -> 55 lb each arm. Pause at the top for a stronger squeeze.",
+    tip: "Pause at the top for a stronger squeeze.",
   },
   {
     id: "ex_chest_row",
@@ -367,7 +367,7 @@ export const SEED_EXERCISES: Exercise[] = [
       "Bar across upper traps. Feet shoulder width, toes slightly out.",
     execution:
       "Brace, sit back and down to at least parallel. Drive up through mid foot.",
-    tip: "Left knee ACL/MCL history — wear knee sleeves. Build: 135 -> 155 -> 175 -> 195 lb.",
+    tip: "Knee sleeves help if you have any knee history. Warm up thoroughly before working sets.",
   },
   {
     id: "ex_front_squat",
@@ -627,7 +627,7 @@ export const SEED_EXERCISES: Exercise[] = [
     secondaryMuscles: ["Triceps Brachii Lateral", "Triceps Brachii Medial"],
     preparation: "Hold a single dumbbell with both hands overhead.",
     execution: "Lower behind the head, squeeze triceps to extend back overhead.",
-    tip: "Long head focus. PR territory at 60 lb x 15. Stretch the bottom hard.",
+    tip: "Long head focus. Stretch the bottom hard.",
   },
   {
     id: "ex_dips_tri",

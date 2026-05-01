@@ -11,17 +11,16 @@ import { ActivityIndicator, View } from "react-native";
 
 import {
   clearAll as storageClearAll,
+  clearLegacySeedKeys,
   loadActiveWorkout,
   loadCustomExercises,
-  loadPRSeedDone,
   loadWorkouts,
   makeId,
-  markPRSeedDone,
   saveActiveWorkout,
   saveCustomExercises,
   saveWorkouts,
+  SEEDED_WORKOUT_NOTES,
 } from "@/lib/storage";
-import { buildPRSeedWorkouts } from "@/lib/initialPRSeed";
 import { requestWorkoutSuggestion, type AiSuggestedExercise } from "@/lib/api";
 import {
   checkPRBeat,
@@ -93,24 +92,27 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const [w, c, a, prSeedDone] = await Promise.all([
+      const [w, c, a] = await Promise.all([
         loadWorkouts(),
         loadCustomExercises(),
         loadActiveWorkout(),
-        loadPRSeedDone(),
       ]);
 
-      let initialWorkouts = w;
-      if (!prSeedDone) {
-        const seeded = buildPRSeedWorkouts();
-        const merged = [...seeded, ...w];
-        merged.sort((a, b) => b.startedAt - a.startedAt);
-        initialWorkouts = merged;
-        await saveWorkouts(merged);
-        await markPRSeedDone();
+      // Scrub any preloaded "personal best" workouts that a previous
+      // version of the app seeded into existing installs. Identified by
+      // their exact note strings (defined in storage.ts). Real users
+      // never end up matching these by accident.
+      const purged = w.filter(
+        (workout) =>
+          !workout.notes || !SEEDED_WORKOUT_NOTES.has(workout.notes),
+      );
+      const purgedCount = w.length - purged.length;
+      if (purgedCount > 0) {
+        await saveWorkouts(purged);
       }
+      await clearLegacySeedKeys();
 
-      setWorkouts(initialWorkouts);
+      setWorkouts(purged);
       setCustomExercises(c);
       setActive(a);
       setLoaded(true);
