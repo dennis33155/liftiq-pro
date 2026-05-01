@@ -17,8 +17,7 @@ export const WEEKLY_SCHEDULE: DaySlot[] = [
     long: "Sunday",
     category: "Legs",
     isRest: false,
-    badge: "T PEAK",
-    note: "Hit it hard. Hormones are with you.",
+    note: "Hit it hard.",
   },
   {
     day: 1,
@@ -58,7 +57,6 @@ export const WEEKLY_SCHEDULE: DaySlot[] = [
     long: "Friday",
     category: "Shoulders",
     isRest: false,
-    badge: "INJECTION DAY",
     note: "Press and load. Set up tomorrow's chest.",
   },
   {
@@ -67,7 +65,6 @@ export const WEEKLY_SCHEDULE: DaySlot[] = [
     long: "Saturday",
     category: "Chest",
     isRest: false,
-    badge: "T PEAK",
     note: "Primary day. Push to PRs.",
   },
 ];
